@@ -1,8 +1,8 @@
-#include "platform/platform.hpp"
+#include "platform/platform.cpp"
 
 #include <xaudio2.h>
 
-#include "AnEngine/core/logger.hpp"
+#include "core/logger.hpp"
 
 /*
 	TODO: NOT FINAL
@@ -29,6 +29,8 @@ struct PlatformWindow
 	int width;
 	int height;
 };
+
+#include "renderer/renderer_vulkan.cpp"
 
 // TODO: this is a global for now, later we will set this somewhere else
 bool should_close = false;
@@ -187,9 +189,10 @@ main_window_callback(HWND w_handle, UINT message, WPARAM wparam, LPARAM lparam)
 
 			// NOTE: holding down e.g. w and then while still holding w, holding down a will result in vkcode == a
 			// to move at the same time with a and w, use: while (vkCode == 'W' && !released)
+			// NOTE: to get only the first pressing of a button use: && is_down && !repeated
 			if (vk_code == 'W')
 			{
-
+			
 			}
 			else if (vk_code == 'A')
 			{
@@ -268,29 +271,18 @@ main_window_callback(HWND w_handle, UINT message, WPARAM wparam, LPARAM lparam)
 	return(result);
 }
 
-//float delta_time()
-//{
-//	LARGE_INTEGER begin_counter;
-//	QueryPerformanceCounter(&begin_counter);
-//
-//	begin_counter.QuadPart = 
-//}
-
 void platform_create_window(const char *title, int width, int height, PlatformWindow *window)
-{
-	HINSTANCE instance = GetModuleHandleW(NULL);
-	window->hinstance = instance;
-
+{	
 	WNDCLASSA w_class{};
 	w_class.style = CS_HREDRAW | CS_VREDRAW;
 	w_class.lpfnWndProc = main_window_callback;
-	w_class.hInstance = instance;
+	w_class.hInstance = window->hinstance;
 	//windowClass.hIcon = ;
 	w_class.lpszClassName = "EngineWindowClass";
 
 	if (!RegisterClassA(&w_class))
 	{
-		std::cerr << "Failed to register window class!" << '\n';
+		AE_FATAL("Failed to register window class!");
 		exit(1);
 	}
 
@@ -303,17 +295,19 @@ void platform_create_window(const char *title, int width, int height, PlatformWi
 		CW_USEDEFAULT, CW_USEDEFAULT,
 		0,
 		0,
-		instance,
+		window->hinstance,
 		0);
 	window->hwnd = w_handle;
 
 	if (!w_handle)
 	{
-		std::cerr << "Failed to create window!" << '\n';
+		AE_FATAL("Failed to create window!");
 		exit(1);
 	}
+}
 
-
+void platform_create_sound_device()
+{	
 	// ------ initialize XAudio2 ------
 	// initialize the COM library, sets the threads concurrency model
 	HRESULT hresult = CoInitializeEx(NULL, COINIT_MULTITHREADED);
@@ -346,7 +340,7 @@ void platform_create_window(const char *title, int width, int height, PlatformWi
 	XAUDIO2_BUFFER buffer{};
 
 	// open the file
-	const char *file = "../Sandbox/res/audio/test.wav";
+	const char *file = "res/audio/test.wav";
 	HANDLE hfile = CreateFileA(
 		file,
 		GENERIC_READ,
@@ -424,12 +418,12 @@ void platform_create_window(const char *title, int width, int height, PlatformWi
 	// --------------------------------
 }
 
-bool window_should_close()
+bool platform_window_should_close()
 {
 	return should_close;
 }
 
-void process_events()
+void platform_process_events()
 {
 	MSG message;
 	if (PeekMessage(&message, 0, 0, 0, PM_REMOVE))
@@ -438,3 +432,19 @@ void process_events()
 		DispatchMessage(&message);
 	}
 }
+
+void platform_delta_time()
+{
+	return;
+}
+
+int APIENTRY WinMain(HINSTANCE h_instance, HINSTANCE h_prev_instance, PSTR cmd_line, int cmdshow)
+{
+	PlatformWindow window{};
+	window.hinstance = h_instance;
+	platform_game_create(&window);
+	RendererContext r_context{};
+	renderer_vulkan_init(&window, &r_context);
+	platform_game_loop(&window, &r_context);
+	platform_game_cleanup(&window, &r_context);
+} 
