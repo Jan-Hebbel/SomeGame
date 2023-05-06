@@ -1,4 +1,4 @@
-#include "platform/platform.hpp"
+
 
 struct PlatformWindow
 {

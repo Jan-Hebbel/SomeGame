@@ -1,12 +1,22 @@
-#include "platform/platform.cpp"
-
+#include <windows.h>
 #include <xaudio2.h>
 
+#include "core/assert.hpp"
+#include "core/utils.hpp"
 #include "core/logger.hpp"
+
+struct PlatformWindow 
+{
+	HINSTANCE hinstance;
+	HWND hwnd;
+	int width;
+	int height;
+};
 
 /*
 	TODO: NOT FINAL
-
+	
+	- logging
 	- saved game locations
 	- getting a handle to our own executable file
 	- asset loading path
@@ -21,18 +31,7 @@
 	- getkeyboard layouts
 	- ...
 */
-
-struct PlatformWindow
-{
-	HINSTANCE hinstance;
-	HWND hwnd;
-	int width;
-	int height;
-};
-
-#include "renderer/renderer_vulkan.cpp"
-
-// TODO: this is a global for now, later we will set this somewhere else
+	
 bool should_close = false;
 
 // big endian
@@ -52,6 +51,11 @@ bool should_close = false;
 #define fourccXWMA 'AMWX'
 #define fourccDPDS 'sdpd'
 #endif
+
+void platform_logging_initialize()
+{
+	return;
+}
 
 HRESULT find_chunk(HANDLE hfile, DWORD fourcc, DWORD &dw_chunk_size, DWORD &dw_chunk_data_position)
 {
@@ -161,10 +165,15 @@ main_window_callback(HWND w_handle, UINT message, WPARAM wparam, LPARAM lparam)
 			// TODO: handle this as an error - recreate window?
 			should_close = true;
 		} break;
-
+		
 		case WM_CLOSE:
 		{
 			// TODO: handle this as a message to the user?
+			should_close = true;
+		} break;
+		
+		case WM_QUIT:
+		{
 			should_close = true;
 		} break;
 
@@ -418,11 +427,6 @@ void platform_create_sound_device()
 	// --------------------------------
 }
 
-bool platform_window_should_close()
-{
-	return should_close;
-}
-
 void platform_process_events()
 {
 	MSG message;
@@ -433,18 +437,26 @@ void platform_process_events()
 	}
 }
 
-void platform_delta_time()
+_Use_decl_annotations_
+int APIENTRY WinMain(_In_ HINSTANCE h_instance, _In_opt_ HINSTANCE h_prev_instance, _In_ PSTR cmd_line, _In_ int cmdshow)
 {
-	return;
-}
-
-int APIENTRY WinMain(HINSTANCE h_instance, HINSTANCE h_prev_instance, PSTR cmd_line, int cmdshow)
-{
+	// initialization
+	platform_logging_initialize();
 	PlatformWindow window{};
 	window.hinstance = h_instance;
-	platform_game_create(&window);
-	RendererContext r_context{};
-	renderer_vulkan_init(&window, &r_context);
-	platform_game_loop(&window, &r_context);
-	platform_game_cleanup(&window, &r_context);
-} 
+	platform_create_window("SomeGame", 1280, 720, &window);
+	platform_create_sound_device();
+	
+	// main loop
+	while (!should_close)
+	{
+		platform_process_events();
+		
+		//game_update();
+		//game_render();
+	}
+	
+	// cleanup
+	
+	return 0;
+}

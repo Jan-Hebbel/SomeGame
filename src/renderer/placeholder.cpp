@@ -1,16 +1,34 @@
-#include "renderer/renderer_vulkan.hpp"
-
-#include "core/assert.hpp"
-#include "core/utils.hpp"
-#include "core/logger.hpp"
+// ------------------------- initializing vulkan -------------------------
+#if defined PLATFORM_WINDOWS
+#define VK_USE_PLATFORM_WIN32_KHR
+#endif
+#include <vulkan/vulkan.h>
 
 #include <cstring>
 #include <cstdlib>
+
+#if defined NDEBUG
+const bool enable_validation_layers = false;
+#else
+const bool enable_validation_layers = true;
+#endif
+
+struct RendererContext
+{
+	VkInstance instance;
+	VkDebugUtilsMessengerEXT debug_messenger;
+	VkPhysicalDevice physical_device;
+	VkSurfaceKHR surface;
+};
 
 const char *validation_layers[] =
 {
 	"VK_LAYER_KHRONOS_validation",
 };
+
+bool check_validation_layer_support();
+void populate_messenger_create_info(VkDebugUtilsMessengerCreateInfoEXT &messenger_info);
+void destroy_debug_utils_messenger(VkInstance instance, VkDebugUtilsMessengerEXT debug_messenger, const VkAllocationCallbacks *p_allocator);
 
 VKAPI_ATTR VkBool32 VKAPI_CALL
 debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT m_severity, VkDebugUtilsMessageTypeFlagsEXT m_types, const VkDebugUtilsMessengerCallbackDataEXT *p_callback_data, void *p_user_data)
@@ -40,35 +58,10 @@ debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT m_severity, VkDebugUtilsMe
 	return VK_FALSE;
 }
 
-void create_instance(RendererContext *r_context);
-void create_debug_messenger(RendererContext *r_context);
-void create_surface(RendererContext *r_context, PlatformWindow *window);
-void choose_physical_device(RendererContext *r_context);
-void destroy_debug_utils_messenger(VkInstance instance, VkDebugUtilsMessengerEXT debug_messenger, const VkAllocationCallbacks *pAllocator);
-
-void renderer_vulkan_init(PlatformWindow *window, RendererContext *r_context)
+// initializing vulkan
+void game_renderer_init(PlatformWindow *window, RendererContext *context)
 {
-	create_instance(r_context);
-	create_debug_messenger(r_context);
-	create_surface(r_context, window);
-	choose_physical_device(r_context);
-}
-
-void renderer_vulkan_cleanup(RendererContext *r_context)
-{
-	vkDestroySurfaceKHR(r_context->instance, r_context->surface, nullptr);
-
-	if (enable_validation_layers)
-		destroy_debug_utils_messenger(r_context->instance, r_context->debug_messenger, nullptr);
-
-	vkDestroyInstance(r_context->instance, nullptr);
-}
-
-bool check_validation_layer_support();
-void populate_messenger_create_info(VkDebugUtilsMessengerCreateInfoEXT &messenger_info);
-
-void create_instance(RendererContext *r_context)
-{
+	// ---- create instance ----
 	VkApplicationInfo app_info{};
 	app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
 	app_info.pNext = NULL;
@@ -130,36 +123,91 @@ void create_instance(RendererContext *r_context)
 	}
 	instance_info.ppEnabledExtensionNames = extensions;
 
-	VkResult result = vkCreateInstance(&instance_info, nullptr, &r_context->instance);
+	VkResult result = vkCreateInstance(&instance_info, nullptr, &context->instance);
 	if (result != VK_SUCCESS)
 	{
 		AE_FATAL("Failed to create Vulkan instance! Result: %d", result);
 		exit(1);
 	}
-}
-
-void create_debug_messenger(RendererContext *r_context)
-{
-	if (!enable_validation_layers) return;
-
-	VkDebugUtilsMessengerCreateInfoEXT messenger_info{};
-	populate_messenger_create_info(messenger_info);
-
-	auto func = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(r_context->instance, "vkCreateDebugUtilsMessengerEXT");
-
-	if (!func)
+	// -------------------------
+	
+	// ---- create debug messenger ----
+	if (enable_validation_layers)
 	{
-		AE_ERROR("Failed to manually load vkCreateDebugUtilsMessengerEXT!");
-		exit(1);
+		auto func = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(context->instance, "vkCreateDebugUtilsMessengerEXT");
+	
+		if (!func)
+		{
+			AE_ERROR("Failed to manually load vkCreateDebugUtilsMessengerEXT!");
+			exit(1);
+		}
+	
+		result = func(context->instance, &messenger_info, nullptr, &context->debug_messenger);
+	
+		if (result != VK_SUCCESS)
+		{
+			AE_ERROR("Failed to create debug utils messenger!");
+			exit(1);
+		}
 	}
+	// --------------------------------
+	
+	// ---- create surface ----
+	// TODO: wayland and macos surfaces
+	VkWin32SurfaceCreateInfoKHR surface_info{};
+	surface_info.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
+	surface_info.pNext = NULL;
+	surface_info.flags = 0;
+	surface_info.hinstance = window->hinstance;
+	surface_info.hwnd = window->hwnd;
 
-	VkResult result = func(r_context->instance, &messenger_info, nullptr, &r_context->debug_messenger);
-
+	result = vkCreateWin32SurfaceKHR(context->instance, &surface_info, nullptr, &context->surface);
 	if (result != VK_SUCCESS)
 	{
-		AE_ERROR("Failed to create debug utils messenger!");
+		AE_ERROR("Failed to create win32 surface!");
 		exit(1);
 	}
+	// ------------------------
+	
+	// ---- choose physical device ----
+	// needs to potentially be changed dependent on the features that this application may need
+	uint32_t physical_device_count = 0;
+	vkEnumeratePhysicalDevices(context->instance, &physical_device_count, NULL);
+
+	if (physical_device_count == 0)
+	{
+		AE_ERROR("Failed to find any Vulkan drivers");
+		exit(1);
+	}
+
+	// TODO: memory arena allocations
+	VkPhysicalDevice physical_devices[10];
+	AE_ASSERT_MSG(physical_device_count <= 10, "Number of physical devices is higher than 10");
+	vkEnumeratePhysicalDevices(context->instance, &physical_device_count, physical_devices);
+
+	for (unsigned int i = 0; i < physical_device_count; ++i)
+	{
+		VkPhysicalDeviceProperties properties;
+		vkGetPhysicalDeviceProperties(physical_devices[i], &properties);
+
+		if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
+		{
+			context->physical_device = physical_devices[i];
+			break;
+		}
+		else if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU)
+		{
+			context->physical_device = physical_devices[i];
+		}
+	}
+
+	AE_ASSERT_MSG(context->physical_device != NULL, "No suitable Vulkan driver found!");
+
+	// can/does physical device 
+	//     - present to a surface?
+	//     - support swap chain?
+	//     - have graphics queue family?
+	// --------------------------------
 }
 
 void destroy_debug_utils_messenger(VkInstance instance, VkDebugUtilsMessengerEXT debug_messenger, const VkAllocationCallbacks *p_allocator)
@@ -175,66 +223,15 @@ void destroy_debug_utils_messenger(VkInstance instance, VkDebugUtilsMessengerEXT
 	func(instance, debug_messenger, nullptr);
 }
 
-void create_surface(RendererContext *r_context, PlatformWindow *window)
+void game_renderer_cleanup(RendererContext *context)
 {
-	// TODO: wayland and macos surfaces
-	VkWin32SurfaceCreateInfoKHR surface_info{};
-	surface_info.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
-	surface_info.pNext = NULL;
-	surface_info.flags = 0;
-	surface_info.hinstance = window->hinstance;
-	surface_info.hwnd = window->hwnd;
+	vkDestroySurfaceKHR(context->instance, context->surface, nullptr);
 
-	VkResult result = vkCreateWin32SurfaceKHR(r_context->instance, &surface_info, nullptr, &r_context->surface);
-	if (result != VK_SUCCESS)
-	{
-		AE_ERROR("Failed to create win32 surface!");
-		exit(1);
-	}
+	if (enable_validation_layers)
+		destroy_debug_utils_messenger(context->instance, context->debug_messenger, nullptr);
+
+	vkDestroyInstance(context->instance, nullptr);
 }
-
-// TODO: this function needs to potentially be changed dependent on the features that this application may need
-void choose_physical_device(RendererContext *r_context)
-{
-	uint32_t physical_device_count = 0;
-	vkEnumeratePhysicalDevices(r_context->instance, &physical_device_count, NULL);
-
-	if (physical_device_count == 0)
-	{
-		AE_ERROR("Failed to find any Vulkan drivers");
-		exit(1);
-	}
-
-	// TODO: memory arena allocations
-	VkPhysicalDevice physical_devices[10];
-	AE_ASSERT_MSG(physical_device_count <= 10, "Number of physical devices is higher than 10");
-	vkEnumeratePhysicalDevices(r_context->instance, &physical_device_count, physical_devices);
-
-	for (unsigned int i = 0; i < physical_device_count; ++i)
-	{
-		VkPhysicalDeviceProperties properties;
-		vkGetPhysicalDeviceProperties(physical_devices[i], &properties);
-
-		if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
-		{
-			r_context->physical_device = physical_devices[i];
-			break;
-		}
-		else if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU)
-		{
-			r_context->physical_device = physical_devices[i];
-		}
-	}
-
-	AE_ASSERT_MSG(r_context->physical_device != NULL, "No suitable Vulkan driver found!");
-
-	// can/does physical device 
-	//     - present to a surface?
-	//     - support swap chain?
-	//     - have graphics queue family?
-}
-
-// --------------------- Vulkan initialization helper functions ---------------------
 
 bool check_validation_layer_support()
 {
@@ -287,3 +284,4 @@ void populate_messenger_create_info(VkDebugUtilsMessengerCreateInfoEXT &messenge
 	messenger_info.pfnUserCallback = debug_callback;
 	messenger_info.pUserData = NULL;
 }
+// -----------------------------------------------------------------------
