@@ -209,7 +209,7 @@ internal void platform_destroy_sound_device()
 	// TODO: cleanup XAudio2 thingy?
 }
 
-void platform_play_audio_file(const char *file_path)
+void platform_audio_play_file(const char *file_path)
 {
 	// populating XAudio2 structures with the contents of RIFF chunks
 	WAVEFORMATEXTENSIBLE wfx{};
@@ -290,19 +290,6 @@ void platform_play_audio_file(const char *file_path)
 		//TODO: Logging
 		return;
 	}
-}
-
-int platform_load_dll(char *file_path)
-{
-	HANDLE vulkan_lib = LoadLibrary("vulkan-1.dll");
-
-	if (!vulkan_lib)
-	{
-		// TODO: Logging
-		return 0;
-	}
-
-	return 1;
 }
 
 LRESULT CALLBACK
@@ -486,7 +473,9 @@ int CALLBACK WinMain(_In_ HINSTANCE h_instance, _In_opt_ HINSTANCE h_prev_instan
 	platform_create_window("SomeGame", 1280, 720, h_instance);
 	platform_create_sound_device();
 	// TODO: remove this
-	platform_play_audio_file("res/audio/test.wav");
+	platform_audio_play_file("res/audio/test.wav");
+
+	game_vulkan_init();
 	
 	should_close = 0;
 
