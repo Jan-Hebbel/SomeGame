@@ -1,21 +1,6 @@
-#include <windows.h>
-#include <xaudio2.h>
-
-#include "core/assert.hpp"
-#include "core/utils.hpp"
-#include "core/logger.hpp"
-
-struct PlatformWindow 
-{
-	HINSTANCE hinstance;
-	HWND hwnd;
-	int width;
-	int height;
-};
-
 /*
 	TODO: NOT FINAL
-	
+
 	- logging
 	- saved game locations
 	- getting a handle to our own executable file
@@ -29,10 +14,56 @@ struct PlatformWindow
 	- querycancelautoplay
 	- WM_ACTIVATEAPP
 	- getkeyboard layouts
+	- hardware acceleration
 	- ...
 */
-	
-bool should_close = false;
+
+#include "platform/platform.hpp"
+/*
+#include "game/game.hpp"
+#include "game/game.cpp"
+*/
+
+#include <stdint.h>
+
+// TODO: put this in a different file
+#define internal static
+#define local_persist static
+#define global_variable static
+
+typedef int8_t int8;
+typedef int16_t int16;
+typedef int32_t int32;
+typedef int64_t int64;
+typedef int32 bool32;
+typedef uint8_t uint8;
+typedef uint16_t uint16;
+typedef uint32_t uint32;
+typedef uint64_t uint64;
+
+typedef float real32;
+typedef double real64;
+// this -----------------------------
+
+#include <windows.h>
+#include <xaudio2.h>
+#include <stdio.h>
+#include "game/game.hpp"
+
+struct Win32WindowDimensions
+{
+	int width;
+	int height;
+};
+
+struct Win32SoundOutput
+{
+	IXAudio2 *p_xaudio2;
+	BYTE *p_data_buffer;
+};
+
+global_variable bool32 should_close = 1;
+global_variable Win32SoundOutput sound_device{};
 
 // big endian
 #ifdef _XBOX
@@ -52,17 +83,12 @@ bool should_close = false;
 #define fourccDPDS 'sdpd'
 #endif
 
-void platform_logging_initialize()
-{
-	return;
-}
-
-HRESULT find_chunk(HANDLE hfile, DWORD fourcc, DWORD &dw_chunk_size, DWORD &dw_chunk_data_position)
+internal HRESULT find_chunk(HANDLE hfile, DWORD fourcc, DWORD &dw_chunk_size, DWORD &dw_chunk_data_position)
 {
 	HRESULT hr = S_OK;
 	if (INVALID_SET_FILE_POINTER == SetFilePointer(hfile, 0, NULL, FILE_BEGIN))
 	{
-		AE_WARN("Couldn't set file pointer!");
+		//TODO: Logging
 		return HRESULT_FROM_WIN32(GetLastError());
 	}
 
@@ -78,13 +104,13 @@ HRESULT find_chunk(HANDLE hfile, DWORD fourcc, DWORD &dw_chunk_size, DWORD &dw_c
 		DWORD dw_read;
 		if (ReadFile(hfile, &dw_chunk_type, sizeof(DWORD), &dw_read, NULL) == 0)
 		{
-			AE_WARN("Couldn't read audio file!");
+			//TODO: Logging
 			hr = HRESULT_FROM_WIN32(GetLastError());
 		}
 
 		if (ReadFile(hfile, &dw_chunk_data_size, sizeof(DWORD), &dw_read, NULL) == 0)
 		{
-			AE_WARN("Couldn't read audio file!");
+			//TODO: Logging
 			hr = HRESULT_FROM_WIN32(GetLastError());
 		}
 
@@ -96,7 +122,7 @@ HRESULT find_chunk(HANDLE hfile, DWORD fourcc, DWORD &dw_chunk_size, DWORD &dw_c
 				dw_chunk_data_size = 4;
 				if (ReadFile(hfile, &dw_file_type, sizeof(DWORD), &dw_read, NULL) == 0)
 				{
-					AE_WARN("Couldn't read audio file!");
+					//TODO: Logging
 					hr = HRESULT_FROM_WIN32(GetLastError());
 				}
 			} break;
@@ -105,7 +131,7 @@ HRESULT find_chunk(HANDLE hfile, DWORD fourcc, DWORD &dw_chunk_size, DWORD &dw_c
 			{
 				if (INVALID_SET_FILE_POINTER == SetFilePointer(hfile, dw_chunk_data_size, NULL, FILE_CURRENT))
 				{
-					AE_WARN("Couldn't set file pointer!");
+					//TODO: Logging
 					return HRESULT_FROM_WIN32(GetLastError());
 				}
 			}
@@ -128,21 +154,155 @@ HRESULT find_chunk(HANDLE hfile, DWORD fourcc, DWORD &dw_chunk_size, DWORD &dw_c
 	return S_OK;
 }
 
-HRESULT read_chunk_data(HANDLE hfile, void *buffer, DWORD buffer_size, DWORD buffer_offset)
+internal HRESULT read_chunk_data(HANDLE hfile, void *buffer, DWORD buffer_size, DWORD buffer_offset)
 {
 	HRESULT hr = S_OK;
 	if (INVALID_SET_FILE_POINTER == SetFilePointer(hfile, buffer_offset, NULL, FILE_BEGIN))
 	{
-		AE_WARN("Couldn't set file pointer!");
+		//TODO: Logging
 		return HRESULT_FROM_WIN32(GetLastError());
 	}
 	DWORD dw_read;
 	if (ReadFile(hfile, buffer, buffer_size, &dw_read, NULL) == 0)
 	{
-		AE_WARN("Couldn't read file!");
+		//TODO: Logging
 		hr = HRESULT_FROM_WIN32(GetLastError());
 	}
 	return hr;
+}
+
+
+internal void platform_create_sound_device()
+{
+	// ------ initialize XAudio2 ------
+	// initialize the COM library, sets the threads concurrency model
+	HRESULT hresult = CoInitializeEx(NULL, COINIT_MULTITHREADED);
+	if (FAILED(hresult))
+	{
+		//TODO: Logging
+		return;
+	}
+
+	// create an instance of the XAudio2 engine
+	sound_device.p_xaudio2 = NULL;
+	hresult = XAudio2Create(&sound_device.p_xaudio2, 0, XAUDIO2_DEFAULT_PROCESSOR);
+	if (FAILED(hresult))
+	{
+		//TODO: Logging
+		return;
+	}
+
+	// create mastering voice (sends audio data to hardware)
+	IXAudio2MasteringVoice *p_mastering_voice = NULL;
+	hresult = sound_device.p_xaudio2->CreateMasteringVoice(&p_mastering_voice);
+	if (FAILED(hresult))
+	{
+		//TODO: Logging
+		return;
+	}
+	// --------------------------------
+}
+
+internal void platform_destroy_sound_device()
+{
+	delete[] sound_device.p_data_buffer;
+	// TODO: cleanup XAudio2 thingy?
+}
+
+void platform_play_audio_file(const char *file_path)
+{
+	// populating XAudio2 structures with the contents of RIFF chunks
+	WAVEFORMATEXTENSIBLE wfx{};
+	XAUDIO2_BUFFER buffer{};
+
+	// open the file
+	HANDLE hfile = CreateFileA(
+		file_path,
+		GENERIC_READ,
+		FILE_SHARE_READ,
+		NULL,
+		OPEN_EXISTING,
+		0,
+		NULL
+	);
+
+	if (hfile == INVALID_HANDLE_VALUE)
+	{
+		//TODO: Logging
+		return;
+	}
+
+	if (SetFilePointer(hfile, 0, NULL, FILE_BEGIN) == INVALID_SET_FILE_POINTER)
+	{
+		//TODO: Logging
+		return;
+	}
+
+	// locate the 'RIFF' chunk in the audio file, check the file type
+	DWORD dw_chunk_size;
+	DWORD dw_chunk_position;
+	// check the file type, should be fourccWAVE or 'XWMA'
+	find_chunk(hfile, fourccRIFF, dw_chunk_size, dw_chunk_position);
+	DWORD file_type;
+	read_chunk_data(hfile, &file_type, sizeof(DWORD), dw_chunk_position);
+	if (file_type != fourccWAVE)
+	{
+		//TODO: Logging
+		return;
+	}
+
+	// locate the 'fmt ' chunk and copy its contents into a WAVEFORMATEXTENSIBLE structure
+	find_chunk(hfile, fourccFMT, dw_chunk_size, dw_chunk_position);
+	read_chunk_data(hfile, &wfx, dw_chunk_size, dw_chunk_position);
+
+	// locate the 'data' chunk and read its contents into a buffer
+	// fill out the audio data buffer with the contents of the fourccDATA chunk
+	find_chunk(hfile, fourccDATA, dw_chunk_size, dw_chunk_position);
+	// TODO: delete this data from the heap
+	sound_device.p_data_buffer = new BYTE[dw_chunk_size];
+	read_chunk_data(hfile, sound_device.p_data_buffer, dw_chunk_size, dw_chunk_position);
+
+	// populate an XAUDIO2_BUFFER structure
+	buffer.AudioBytes = dw_chunk_size; // size of the audio buffer in bytes
+	buffer.pAudioData = sound_device.p_data_buffer; // buffer containing audio data
+	buffer.Flags = XAUDIO2_END_OF_STREAM; // tell the source voice not to expect any data after this buffer 
+
+	// start it playing
+	IXAudio2SourceVoice *p_source_voice;
+
+	HRESULT hresult = sound_device.p_xaudio2->CreateSourceVoice(&p_source_voice, (WAVEFORMATEX *)&wfx);
+	if (FAILED(hresult))
+	{
+		//TODO: Logging
+		return;
+	}
+
+	hresult = p_source_voice->SubmitSourceBuffer(&buffer);
+	if (FAILED(hresult))
+	{
+		//TODO: Logging
+		return;
+	}
+
+	hresult = p_source_voice->Start(0);
+	if (FAILED(hresult))
+	{
+		//TODO: Logging
+		return;
+	}
+}
+
+int platform_load_dll(char *file_path)
+{
+	HANDLE vulkan_lib = LoadLibrary("vulkan-1.dll");
+
+	if (!vulkan_lib)
+	{
+		// TODO: Logging
+		return 0;
+	}
+
+	return 1;
 }
 
 LRESULT CALLBACK
@@ -152,12 +312,15 @@ main_window_callback(HWND w_handle, UINT message, WPARAM wparam, LPARAM lparam)
 
 	switch (message)
 	{
-		case WM_SIZE:
+		case WM_CLOSE:
 		{
-			RECT client_rect{};
-			GetClientRect(w_handle, &client_rect);
-			// TODO: set window width and height somehow
-			// TODO: signal window resize to vulkan renderer
+			// TODO: handle this as a message to the user?
+			should_close = true;
+		} break;
+
+		case WM_ACTIVATEAPP:
+		{
+			OutputDebugStringA("WM_ACTIVATEAPP\n");
 		} break;
 
 		case WM_DESTROY:
@@ -166,23 +329,6 @@ main_window_callback(HWND w_handle, UINT message, WPARAM wparam, LPARAM lparam)
 			should_close = true;
 		} break;
 		
-		case WM_CLOSE:
-		{
-			// TODO: handle this as a message to the user?
-			should_close = true;
-		} break;
-		
-		case WM_QUIT:
-		{
-			should_close = true;
-		} break;
-
-		case WM_ACTIVATEAPP:
-		{
-			// TODO: handle this
-		} break;
-
-		// TODO: set this up somewhere else
 		case WM_KEYDOWN:
 		case WM_SYSKEYDOWN:
 		case WM_KEYUP:
@@ -201,7 +347,7 @@ main_window_callback(HWND w_handle, UINT message, WPARAM wparam, LPARAM lparam)
 			// NOTE: to get only the first pressing of a button use: && is_down && !repeated
 			if (vk_code == 'W')
 			{
-			
+				
 			}
 			else if (vk_code == 'A')
 			{
@@ -280,18 +426,18 @@ main_window_callback(HWND w_handle, UINT message, WPARAM wparam, LPARAM lparam)
 	return(result);
 }
 
-void platform_create_window(const char *title, int width, int height, PlatformWindow *window)
+internal void platform_create_window(const char *title, int width, int height, HINSTANCE hinstance)
 {	
 	WNDCLASSA w_class{};
 	w_class.style = CS_HREDRAW | CS_VREDRAW;
 	w_class.lpfnWndProc = main_window_callback;
-	w_class.hInstance = window->hinstance;
+	w_class.hInstance = hinstance;
 	//windowClass.hIcon = ;
 	w_class.lpszClassName = "EngineWindowClass";
 
 	if (!RegisterClassA(&w_class))
 	{
-		AE_FATAL("Failed to register window class!");
+		//TODO: Logging
 		exit(1);
 	}
 
@@ -300,163 +446,85 @@ void platform_create_window(const char *title, int width, int height, PlatformWi
 		w_class.lpszClassName,
 		title,
 		WS_OVERLAPPEDWINDOW | WS_VISIBLE,
-		CW_USEDEFAULT, CW_USEDEFAULT,
-		CW_USEDEFAULT, CW_USEDEFAULT,
+		CW_USEDEFAULT, 
+		CW_USEDEFAULT,
+		CW_USEDEFAULT, 
+		CW_USEDEFAULT,
 		0,
 		0,
-		window->hinstance,
+		w_class.hInstance,
 		0);
-	window->hwnd = w_handle;
 
 	if (!w_handle)
 	{
-		AE_FATAL("Failed to create window!");
+		//TODO: Logging
 		exit(1);
 	}
 }
 
-void platform_create_sound_device()
-{	
-	// ------ initialize XAudio2 ------
-	// initialize the COM library, sets the threads concurrency model
-	HRESULT hresult = CoInitializeEx(NULL, COINIT_MULTITHREADED);
-	if (FAILED(hresult))
-	{
-		AE_WARN("Failed to initialize the COM library: %lu; Proceeding without audio.", hresult);
-		return;
-	}
-
-	// create an instance of the XAudio2 engine
-	IXAudio2 *p_xaudio2 = NULL;
-	hresult = XAudio2Create(&p_xaudio2, 0, XAUDIO2_DEFAULT_PROCESSOR);
-	if (FAILED(hresult))
-	{
-		AE_WARN("Failed to create an instance of the XAudio2 engine: %lu; Proceeding without audio.", hresult);
-		return;
-	}
-
-	// create mastering voice (sends audio data to hardware)
-	IXAudio2MasteringVoice *p_mastering_voice = NULL;
-	hresult = p_xaudio2->CreateMasteringVoice(&p_mastering_voice);
-	if (FAILED(hresult))
-	{
-		AE_WARN("Failed to create mastering voice: %lu; Proceeding without audio.", hresult);
-		return;
-	}
-
-	// populating XAudio2 structures with the contents of RIFF chunks
-	WAVEFORMATEXTENSIBLE wfx{};
-	XAUDIO2_BUFFER buffer{};
-
-	// open the file
-	const char *file = "res/audio/test.wav";
-	HANDLE hfile = CreateFileA(
-		file,
-		GENERIC_READ,
-		FILE_SHARE_READ,
-		NULL,
-		OPEN_EXISTING,
-		0,
-		NULL
-	);
-
-	if (hfile == INVALID_HANDLE_VALUE)
-	{
-		AE_WARN("Couldn't find audio file %s!", file);
-		return;
-	}
-
-	if (SetFilePointer(hfile, 0, NULL, FILE_BEGIN) == INVALID_SET_FILE_POINTER)
-	{
-		AE_WARN("Couldn't set file pointer!");
-		return;
-	}
-
-	// locate the 'RIFF' chunk in the audio file, check the file type
-	DWORD dw_chunk_size;
-	DWORD dw_chunk_position;
-	// check the file type, should be fourccWAVE or 'XWMA'
-	find_chunk(hfile, fourccRIFF, dw_chunk_size, dw_chunk_position);
-	DWORD file_type;
-	read_chunk_data(hfile, &file_type, sizeof(DWORD), dw_chunk_position);
-	if (file_type != fourccWAVE)
-	{
-		AE_WARN("Unexpected file type! Expected file type was fourccWave.");
-		return;
-	}
-
-	// locate the 'fmt ' chunk and copy its contents into a WAVEFORMATEXTENSIBLE structure
-	find_chunk(hfile, fourccFMT, dw_chunk_size, dw_chunk_position);
-	read_chunk_data(hfile, &wfx, dw_chunk_size, dw_chunk_position);
-
-	// locate the 'data' chunk and read its contents into a buffer
-	// fill out the audio data buffer with the contents of the fourccDATA chunk
-	find_chunk(hfile, fourccDATA, dw_chunk_size, dw_chunk_position);
-	// TODO: delete this data from the heap
-	BYTE *p_data_buffer = new BYTE[dw_chunk_size];
-	read_chunk_data(hfile, p_data_buffer, dw_chunk_size, dw_chunk_position);
-
-	// populate an XAUDIO2_BUFFER structure
-	buffer.AudioBytes = dw_chunk_size; // size of the audio buffer in bytes
-	buffer.pAudioData = p_data_buffer; // buffer containing audio data
-	buffer.Flags = XAUDIO2_END_OF_STREAM; // tell the source voice not to expect any data after this buffer 
-
-	// start it playing
-	IXAudio2SourceVoice *p_source_voice;
-
-	hresult = p_xaudio2->CreateSourceVoice(&p_source_voice, (WAVEFORMATEX *)&wfx);
-	if (FAILED(hresult))
-	{
-		AE_WARN("Failed to create source voice!");
-		return;
-	}
-
-	hresult = p_source_voice->SubmitSourceBuffer(&buffer);
-	if (FAILED(hresult))
-	{
-		AE_WARN("Failed to submit source buffer!");
-		return;
-	}
-
-	hresult = p_source_voice->Start(0);
-	if (FAILED(hresult))
-	{
-		AE_WARN("Couldn't play the sound!");
-		return;
-	}
-	// --------------------------------
-}
-
-void platform_process_events()
+internal void platform_process_events()
 {
 	MSG message;
-	if (PeekMessage(&message, 0, 0, 0, PM_REMOVE))
+	while (PeekMessage(&message, 0, 0, 0, PM_REMOVE))
 	{
+		if (message.message == WM_QUIT)
+		{
+			should_close = true;
+		}
+
 		TranslateMessage(&message);
 		DispatchMessage(&message);
 	}
 }
 
-_Use_decl_annotations_
-int APIENTRY WinMain(_In_ HINSTANCE h_instance, _In_opt_ HINSTANCE h_prev_instance, _In_ PSTR cmd_line, _In_ int cmdshow)
+int CALLBACK WinMain(_In_ HINSTANCE h_instance, _In_opt_ HINSTANCE h_prev_instance, _In_ PSTR cmd_line, _In_ int cmdshow)
 {
-	// initialization
-	platform_logging_initialize();
-	PlatformWindow window{};
-	window.hinstance = h_instance;
-	platform_create_window("SomeGame", 1280, 720, &window);
+	LARGE_INTEGER perf_count_frequency_result;
+	QueryPerformanceFrequency(&perf_count_frequency_result);
+	int64_t perf_count_frequency = perf_count_frequency_result.QuadPart;
+
+	platform_create_window("SomeGame", 1280, 720, h_instance);
 	platform_create_sound_device();
+	// TODO: remove this
+	platform_play_audio_file("res/audio/test.wav");
 	
-	// main loop
+	should_close = 0;
+
+	LARGE_INTEGER last_counter;
+	QueryPerformanceCounter(&last_counter);
+	uint64 last_cycle_count = __rdtsc();
+
 	while (!should_close)
 	{
+		// handle input and other events
 		platform_process_events();
 		
-		//game_update();
-		//game_render();
+		// update game and render
+		game_update();
+		game_render();
+
+		// function: calculate performance metrics
+		uint64 end_cycle_count = __rdtsc();
+		LARGE_INTEGER end_counter;
+		QueryPerformanceCounter(&end_counter);
+
+		uint64 cycles_elapsed = end_cycle_count - last_cycle_count;
+		int64 counter_elapsed = end_counter.QuadPart - last_counter.QuadPart;
+		real64 ms_per_frame = (1000.0f * (real64)counter_elapsed) / (real64)perf_count_frequency;
+		real64 fps = (real64)perf_count_frequency / (real64)counter_elapsed;
+		// mcpf == mega cycles per frame
+		real64 mcpf = (real64)cycles_elapsed / (1000.0f * 1000.0f);
+
+		// TODO: display metrics to screen
+
+		last_counter = end_counter;
+		last_cycle_count = end_cycle_count;
+		// end of calculating performance metrics
 	}
 	
 	// cleanup
+	platform_destroy_sound_device();
+	//platform_destroy_window(); ????
 	
 	return 0;
 }

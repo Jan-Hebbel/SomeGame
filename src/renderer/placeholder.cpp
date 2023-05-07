@@ -1,6 +1,7 @@
 // ------------------------- initializing vulkan -------------------------
 #if defined PLATFORM_WINDOWS
 #define VK_USE_PLATFORM_WIN32_KHR
+HANDLE VulkanLibrary = LoadLibrary("vulkan-1.dll");
 #endif
 #include <vulkan/vulkan.h>
 
