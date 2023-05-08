@@ -1,22 +1,13 @@
 #include "pch.hpp"
 
 #include "game/game.hpp"
-
-#if defined PLATFORM_WINDOWS
-#define VK_USE_PLATFORM_WIN32_KHR
-#elif defined PLATFORM_LINUX
-// TODO: support linux
-#elif defined PLATFORM_MACOS
-// TODO: support macos
-#else 
-#error Unsupported Operating System!
-#endif
-
-#include "platform/platform.hpp"
+#include "game/game_vulkan.hpp"
+#include "game/game_vulkan_helper.cpp"
 
 #include <vulkan/vulkan.h>
 
 #include <vector>
+#include <cstring>
 
 #ifdef _DEBUG
 constexpr bool enable_validation_layers = true;
@@ -33,7 +24,7 @@ struct GameVulkanStruct
 
 global_variable GameVulkanStruct vk_struct;
 
-int game_vulkan_init()
+bool32 game_vulkan_init()
 {
 	// ---------- create vulkan instance ----------------
 	{
@@ -61,15 +52,25 @@ int game_vulkan_init()
 	#endif
 		};
 
-		// TODO: check for validation layer support, if not supported just proceed without
 		if (enable_validation_layers)
 		{
-			instance_info.enabledLayerCount = layer_count;
-			instance_info.ppEnabledLayerNames = layers;
+			if (check_layer_support(layers, layer_count))
+			{
+				instance_info.enabledLayerCount = layer_count;
+				instance_info.ppEnabledLayerNames = layers;
 
-			instance_info.pNext; // debug callback
+				instance_info.pNext; // debug callback
 
-			extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+				extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+			}
+			else
+			{
+				// TODO: Logging (enable_validation_layers is true but validation layers not supported; continuing without validation layers)
+				instance_info.enabledLayerCount = 0;
+				instance_info.ppEnabledLayerNames = 0;
+
+				instance_info.pNext = 0;
+			}
 		}
 		else
 		{
@@ -84,7 +85,7 @@ int game_vulkan_init()
 
 		if (vkCreateInstance(&instance_info, 0, &vk_struct.instance))
 		{
-			// TODO: Log
+			// TODO: Log (Failed to create vulkan instance! Exiting Game!)
 			return 1;
 		}
 	}

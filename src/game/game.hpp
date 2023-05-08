@@ -5,7 +5,7 @@
     NOTE: Services that the game provides
 */
 
-int game_vulkan_init();
+bool32 game_vulkan_init();
 
 void game_update();
 void game_render();
