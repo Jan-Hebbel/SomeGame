@@ -27,6 +27,12 @@
 #include <windows.h>
 #include <xaudio2.h>
 
+struct Win32WindowHandles
+{
+	HINSTANCE hinstance;
+	HWND hwnd;
+};
+
 struct Win32WindowDimensions
 {
 	int width;
@@ -41,6 +47,7 @@ struct Win32SoundOutput
 
 global_variable bool32 should_close = 1;
 global_variable Win32SoundOutput sound_device{};
+global_variable Win32WindowHandles window_handles{};
 
 // big endian
 #ifdef _XBOX
@@ -269,6 +276,11 @@ void platform_audio_play_file(const char *file_path)
 	}
 }
 
+void *platform_get_window_handles()
+{
+	return (void *)&window_handles;
+}
+
 LRESULT CALLBACK
 main_window_callback(HWND w_handle, UINT message, WPARAM wparam, LPARAM lparam)
 {
@@ -390,12 +402,14 @@ main_window_callback(HWND w_handle, UINT message, WPARAM wparam, LPARAM lparam)
 	return(result);
 }
 
-internal void platform_create_window(const char *title, int width, int height, HINSTANCE hinstance)
+// TODO: bool32 return type; not exiting in this function
+internal void platform_create_window(const char *title, int width, int height)
 {	
 	WNDCLASSA w_class{};
 	w_class.style = CS_HREDRAW | CS_VREDRAW;
 	w_class.lpfnWndProc = main_window_callback;
-	w_class.hInstance = hinstance;
+	w_class.hInstance = window_handles.hinstance;
+	w_class.hCursor = LoadCursor(0, IDC_ARROW);
 	//windowClass.hIcon = ;
 	w_class.lpszClassName = "EngineWindowClass";
 
@@ -424,6 +438,9 @@ internal void platform_create_window(const char *title, int width, int height, H
 		//TODO: Logging
 		exit(1);
 	}
+
+	// TODO: Logging (successfully created window)
+	window_handles.hwnd = w_handle;
 }
 
 internal void platform_process_events()
@@ -447,7 +464,8 @@ int CALLBACK WinMain(_In_ HINSTANCE h_instance, _In_opt_ HINSTANCE h_prev_instan
 	QueryPerformanceFrequency(&perf_count_frequency_result);
 	int64 perf_count_frequency = perf_count_frequency_result.QuadPart;
 
-	platform_create_window("SomeGame", 1280, 720, h_instance);
+	window_handles.hinstance = h_instance;
+	platform_create_window("SomeGame", 1280, 720);
 	platform_create_sound_device();
 	// TODO: remove this
 	platform_audio_play_file("res/audio/test.wav");

@@ -1,12 +1,14 @@
 #include "pch.hpp"
 
+#include "game/game_vulkan_helper.hpp"
+
 #include "game/game_vulkan.hpp"
 
 #include <vulkan/vulkan.h>
 
 #include <vector>
 
-internal bool check_layer_support(const char *layers[], uint size)
+bool check_layer_support(const char *layers[], uint size)
 {
 	uint32 layer_count = 0;
 	vkEnumerateInstanceLayerProperties(&layer_count, 0);
@@ -35,4 +37,11 @@ internal bool check_layer_support(const char *layers[], uint size)
 	}
 
 	return true;
+}
+
+VKAPI_ATTR VkBool32 VKAPI_CALL vulkan_debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT type, const VkDebugUtilsMessengerCallbackDataEXT *p_callback_data, void *p_user_data)
+{
+	// TODO: Logging
+	
+	return VK_FALSE;
 }

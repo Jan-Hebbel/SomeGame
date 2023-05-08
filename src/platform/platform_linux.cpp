@@ -7,7 +7,7 @@ struct PlatformWindow
 	int height;
 };
 
-void platform_create_window(const char *title, int width, int height, PlatformWindow *window)
+void platform_create_window(const char *title, int width, int height)
 {
 
 }
