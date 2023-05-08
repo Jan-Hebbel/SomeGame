@@ -18,37 +18,14 @@
 	- ...
 */
 
+#include "pch.hpp"
+
 #include "platform/platform.hpp"
-/*
+
 #include "game/game.hpp"
-#include "game/game.cpp"
-*/
-
-#include <stdint.h>
-
-// TODO: put this in a different file
-#define internal static
-#define local_persist static
-#define global_variable static
-
-typedef int8_t int8;
-typedef int16_t int16;
-typedef int32_t int32;
-typedef int64_t int64;
-typedef int32 bool32;
-typedef uint8_t uint8;
-typedef uint16_t uint16;
-typedef uint32_t uint32;
-typedef uint64_t uint64;
-
-typedef float real32;
-typedef double real64;
-// this -----------------------------
 
 #include <windows.h>
 #include <xaudio2.h>
-#include <stdio.h>
-#include "game/game.hpp"
 
 struct Win32WindowDimensions
 {
@@ -468,7 +445,7 @@ int CALLBACK WinMain(_In_ HINSTANCE h_instance, _In_opt_ HINSTANCE h_prev_instan
 {
 	LARGE_INTEGER perf_count_frequency_result;
 	QueryPerformanceFrequency(&perf_count_frequency_result);
-	int64_t perf_count_frequency = perf_count_frequency_result.QuadPart;
+	int64 perf_count_frequency = perf_count_frequency_result.QuadPart;
 
 	platform_create_window("SomeGame", 1280, 720, h_instance);
 	platform_create_sound_device();

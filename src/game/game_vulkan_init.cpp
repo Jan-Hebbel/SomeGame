@@ -1,3 +1,5 @@
+#include "pch.hpp"
+
 #include "game/game.hpp"
 
 #if defined PLATFORM_WINDOWS
@@ -29,8 +31,7 @@ struct GameVulkanStruct
 	VkInstance instance;
 };
 
-// TODO: typedef static global_variable
-static GameVulkanStruct vk_struct;
+global_variable GameVulkanStruct vk_struct;
 
 int game_vulkan_init()
 {
@@ -50,7 +51,7 @@ int game_vulkan_init()
 		const char *layers[] = {
 			"VK_LAYER_KHRONOS_validation",
 		};
-		const uint32_t layer_count = sizeof(layers) / sizeof(layers[0]);
+		const uint32 layer_count = sizeof(layers) / sizeof(layers[0]);
 
 		// vulkan extensions
 		std::vector<const char *> extensions = {
@@ -78,7 +79,7 @@ int game_vulkan_init()
 			instance_info.pNext = 0;
 		}
 
-		instance_info.enabledExtensionCount = (uint32_t)extensions.size();
+		instance_info.enabledExtensionCount = (uint32)extensions.size();
 		instance_info.ppEnabledExtensionNames = extensions.data();
 
 		if (vkCreateInstance(&instance_info, 0, &vk_struct.instance))

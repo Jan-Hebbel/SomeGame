@@ -1,3 +1,5 @@
+#include "pch.hpp"
+
 #include "game/game.hpp"
 
 #include "platform/platform.hpp"
