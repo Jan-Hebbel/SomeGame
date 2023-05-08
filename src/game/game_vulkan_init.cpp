@@ -27,6 +27,7 @@ struct GameVulkanContext
 	VkInstance instance;
 	VkDebugUtilsMessengerEXT debug_callback;
 	VkSurfaceKHR surface;
+	VkPhysicalDevice physical_device;
 };
 
 global_variable GameVulkanContext context;
@@ -168,7 +169,37 @@ bool32 game_vulkan_init()
 
 	// ---------- choose physical device ----------------
 	{
+		uint32 physical_device_count = 0;
+		vkEnumeratePhysicalDevices(context.instance, &physical_device_count, 0);
 
+		// TODO: arena allocator
+		std::vector<VkPhysicalDevice> physical_devices(physical_device_count);
+		vkEnumeratePhysicalDevices(context.instance, &physical_device_count, physical_devices.data());
+
+		for (const auto &physical_device : physical_devices)
+		{
+			VkPhysicalDeviceProperties device_properties{};
+			vkGetPhysicalDeviceProperties(physical_device, &device_properties);
+
+			// TODO: just pick first gpu?
+			if (device_properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
+			{
+				context.physical_device = physical_device;
+				break;
+			}
+			// take integrated graphics if available but run loop to end to loop for dedicated gpu
+			else if (device_properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU)
+			{
+				context.physical_device = physical_device;
+			}
+		}
+
+		// TODO: no physical device available; maybe try DirectX or something
+		if (context.physical_device == 0)
+		{
+			// TODO: Logging
+			return 1;
+		}
 	}
 	// --------------------------------------------------
 	return 0;
