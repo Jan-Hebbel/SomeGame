@@ -13,6 +13,7 @@
 
 #include <vector>
 #include <cstring>
+#include <optional>
 
 #ifdef _DEBUG
 constexpr bool enable_validation_layers = true;
@@ -31,6 +32,12 @@ struct GameVulkanContext
 };
 
 global_variable GameVulkanContext context;
+
+struct QueueFamilyIndices
+{
+	std::optional<uint32> graphics_family;
+	// fill this out as the need for more queue families arises
+};
 
 bool32 game_vulkan_init()
 {
@@ -167,7 +174,7 @@ bool32 game_vulkan_init()
 
 
 
-	// ---------- choose physical device ----------------
+	// ---------- pick physical device ------------------
 	{
 		uint32 physical_device_count = 0;
 		vkEnumeratePhysicalDevices(context.instance, &physical_device_count, 0);
@@ -178,28 +185,61 @@ bool32 game_vulkan_init()
 
 		for (const auto &physical_device : physical_devices)
 		{
-			VkPhysicalDeviceProperties device_properties{};
-			vkGetPhysicalDeviceProperties(physical_device, &device_properties);
+			VkPhysicalDeviceProperties physical_device_properties;
+			vkGetPhysicalDeviceProperties(physical_device, &physical_device_properties);
 
-			// TODO: just pick first gpu?
-			if (device_properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
+			// find queue families for a physical device
+			QueueFamilyIndices indices;
+			uint32 queue_family_count;
+			vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &queue_family_count, 0);
+
+			// TODO: change this when arena allocator is done
+			std::vector<VkQueueFamilyProperties> queue_family_properties_array(queue_family_count);
+			vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &queue_family_count, queue_family_properties_array.data());
+
+			int i = 0;
+			bool queue_family_indices_is_complete = false;
+			for (const auto &queue_family_properties : queue_family_properties_array)
+			{
+				// TODO: fill this in if need for other queue family arises
+				if (queue_family_properties.queueFlags & VK_QUEUE_GRAPHICS_BIT)
+				{
+					indices.graphics_family = i;
+				}
+
+				// check if all indices have a value, if they do break the loop early
+				if (indices.graphics_family.has_value())
+				{
+					queue_family_indices_is_complete = true;
+					break;
+				}
+
+				++i;
+			}
+
+			// search for other devices if they are not a dedicated gpu
+			if (queue_family_indices_is_complete && physical_device_properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
 			{
 				context.physical_device = physical_device;
 				break;
 			}
-			// take integrated graphics if available but run loop to end to loop for dedicated gpu
-			else if (device_properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU)
-			{
-				context.physical_device = physical_device;
-			}
 		}
 
-		// TODO: no physical device available; maybe try DirectX or something
 		if (context.physical_device == 0)
 		{
-			// TODO: Logging
+			platform_error_message_window("Error!", "Your device has no suitable Vulkan driver!");
 			return GAME_FAILURE;
 		}
+
+		// TODO: Log the picked physical device
+	}
+	// --------------------------------------------------
+
+
+
+	// ---------- create logical device -----------------
+	{
+		
 	}
 	// --------------------------------------------------
 

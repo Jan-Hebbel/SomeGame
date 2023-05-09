@@ -28,8 +28,6 @@
 #include <windows.h>
 #include <xaudio2.h>
 
-#include <iostream>
-
 struct Win32WindowHandles
 {
 	HINSTANCE hinstance;
@@ -284,6 +282,11 @@ void *platform_get_window_handles()
 	return (void *)&window_handles;
 }
 
+void platform_error_message_window(const char *title, const char *message)
+{
+	MessageBoxA(window_handles.hwnd, message, title, MB_OK | MB_ICONERROR);
+}
+
 LRESULT CALLBACK
 main_window_callback(HWND w_handle, UINT message, WPARAM wparam, LPARAM lparam)
 {
@@ -463,7 +466,7 @@ internal_function void platform_process_events()
 
 int CALLBACK WinMain(_In_ HINSTANCE h_instance, _In_opt_ HINSTANCE h_prev_instance, _In_ PSTR cmd_line, _In_ int cmdshow)
 {
-	//platform_logging_init();
+	platform_logging_init();
 
 	LARGE_INTEGER perf_count_frequency_result;
 	QueryPerformanceFrequency(&perf_count_frequency_result);
@@ -475,7 +478,11 @@ int CALLBACK WinMain(_In_ HINSTANCE h_instance, _In_opt_ HINSTANCE h_prev_instan
 	// TODO: remove this
 	platform_audio_play_file("res/audio/test.wav");
 
-	game_vulkan_init();
+	bool32 result_vulkan_init = game_vulkan_init();
+	if (result_vulkan_init == GAME_FAILURE)
+	{
+		exit(1);
+	}
 	
 	should_close = 0;
 
@@ -516,7 +523,7 @@ int CALLBACK WinMain(_In_ HINSTANCE h_instance, _In_opt_ HINSTANCE h_prev_instan
 	platform_destroy_sound_device();
 	//platform_destroy_window(); ????
 
-	//platform_logging_free();
+	platform_logging_free();
 	
 	return 0;
 }
