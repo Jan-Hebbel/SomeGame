@@ -203,7 +203,5 @@ bool32 game_vulkan_init()
 	}
 	// --------------------------------------------------
 
-	platform_log("%s\n", "test");
-
 	return GAME_SUCCESS;
 }

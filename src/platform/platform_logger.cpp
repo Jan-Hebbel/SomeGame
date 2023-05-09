@@ -1,5 +1,7 @@
 #include "pch.hpp"
 
+#include "platform/platform_logger.hpp"
+
 #include "platform/platform.hpp"
 
 #include <windows.h>
