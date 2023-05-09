@@ -6,6 +6,7 @@
 */
 
 bool32 game_vulkan_init();
+void game_vulkan_cleanup();
 
 void game_update();
 void game_render();

@@ -25,8 +25,8 @@ internal_function bool32 vulkan_surface_create(VkInstance instance, VkSurfaceKHR
 	VkResult result = vkCreateWin32SurfaceKHR(instance, &surface_info, 0, p_surface);
 	if (result != VK_SUCCESS)
 	{
-		return 1;
+		return GAME_FAILURE;
 	}
 	
-	return 0;
+	return GAME_SUCCESS;
 }

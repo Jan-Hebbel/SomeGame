@@ -63,8 +63,8 @@ bool32 game_vulkan_init()
 	VkDebugUtilsMessengerCreateInfoEXT messenger_info{};
 	messenger_info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
 	messenger_info.messageSeverity =
-		VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
-		VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT |
+		//VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
+		//VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT |
 		VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
 		VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
 	messenger_info.messageType =
@@ -305,5 +305,17 @@ bool32 game_vulkan_init()
 		// TODO: log success
 	}
 
+
+
+	{
+		// create swap chain
+
+	}
+
 	return GAME_SUCCESS;
+}
+
+void game_vulkan_cleanup()
+{
+	// TODO
 }
