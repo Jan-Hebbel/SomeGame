@@ -93,10 +93,6 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\game\game.cpp" />
-    <ClCompile Include="src\game\game_vulkan_helper.cpp">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-      </ExcludedFromBuild>
-    </ClCompile>
     <ClCompile Include="src\game\game_vulkan_init.cpp" />
     <ClCompile Include="src\game\game_vulkan_surface_win32.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
@@ -113,15 +109,10 @@
     </ClCompile>
     <ClCompile Include="src\platform\platform_logger.cpp" />
     <ClCompile Include="src\platform\platform_win32.cpp" />
-    <ClCompile Include="src\renderer\placeholder.cpp">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\game\game.hpp" />
     <ClInclude Include="src\game\game_vulkan.hpp" />
-    <ClInclude Include="src\game\game_vulkan_helper.hpp" />
     <ClInclude Include="src\pch.hpp" />
     <ClInclude Include="src\platform\platform.hpp" />
     <ClInclude Include="src\platform\platform_logger.hpp" />

@@ -14,6 +14,7 @@ void platform_logging_init()
 {
 	AllocConsole();
 	output_handle = GetStdHandle(STD_OUTPUT_HANDLE);
+	SetConsoleMode(output_handle, ENABLE_PROCESSED_OUTPUT);
 }
 
 void platform_log(const char *message, ...)

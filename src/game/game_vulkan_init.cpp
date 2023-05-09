@@ -2,10 +2,11 @@
 
 #include "game/game.hpp"
 #include "game/game_vulkan.hpp"
-#include "game/game_vulkan_helper.hpp"
+#include "platform/platform.hpp"
 
 // TODO: other operating systems
 #ifdef PLATFORM_WINDOWS
+// TODO: this cpp file includes windows.h; maybe there is another way of getting things up and running without including windows.h in this file
 #include "game/game_vulkan_surface_win32.cpp"
 #endif
 
@@ -29,6 +30,7 @@ struct GameVulkanContext
 	VkDebugUtilsMessengerEXT debug_callback;
 	VkSurfaceKHR surface;
 	VkPhysicalDevice physical_device;
+	VkDevice device;
 };
 
 global_variable GameVulkanContext context;
@@ -39,8 +41,23 @@ struct QueueFamilyIndices
 	// fill this out as the need for more queue families arises
 };
 
+VKAPI_ATTR VkBool32 VKAPI_CALL vulkan_debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT type, const VkDebugUtilsMessengerCallbackDataEXT *p_callback_data, void *p_user_data)
+{
+	platform_log("%s\n\r", p_callback_data->pMessage);
+
+	return VK_FALSE;
+}
+
 bool32 game_vulkan_init()
 {
+	// vulkan extensions
+	std::vector<const char *> extensions = {
+		VK_KHR_SURFACE_EXTENSION_NAME,
+#ifdef VK_USE_PLATFORM_WIN32_KHR
+		VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
+#endif
+	};
+
 	// debug callback: which messages are filtered and which are not
 	VkDebugUtilsMessengerCreateInfoEXT messenger_info{};
 	messenger_info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
@@ -55,10 +72,11 @@ bool32 game_vulkan_init()
 		VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
 	messenger_info.pfnUserCallback = vulkan_debug_callback;
 
+	QueueFamilyIndices queue_family_indices;
 
-
-	// ---------- create vulkan instance ----------------
 	{
+		// create vulkan instance
+
 		VkApplicationInfo app_info{};
 		app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
 		app_info.pApplicationName = "Game"; // TODO: real name
@@ -75,17 +93,30 @@ bool32 game_vulkan_init()
 		};
 		const uint32 layer_count = sizeof(layers) / sizeof(layers[0]);
 
-		// vulkan extensions
-		std::vector<const char *> extensions = {
-			VK_KHR_SURFACE_EXTENSION_NAME,
-	#ifdef VK_USE_PLATFORM_WIN32_KHR
-			VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
-	#endif
-		};
-
 		if (enable_validation_layers)
 		{
-			if (check_layer_support(layers, layer_count))
+			// check layer support
+			bool layers_supported = false;
+			uint32 layer_count = 0;
+			vkEnumerateInstanceLayerProperties(&layer_count, 0);
+
+			// TODO: memory arena
+			std::vector<VkLayerProperties> layer_properties_dynamic_array;
+			vkEnumerateInstanceLayerProperties(&layer_count, layer_properties_dynamic_array.data());
+
+			for (const auto &layer_properties : layer_properties_dynamic_array)
+			{
+				for (uint i = 0; i < layer_count; ++i)
+				{
+					if (std::strcmp(layer_properties.layerName, layers[i]) == 0)
+					{
+						bool layers_supported = true;
+						break;
+					}
+				}
+			}
+
+			if (layers_supported)
 			{
 				instance_info.enabledLayerCount = layer_count;
 				instance_info.ppEnabledLayerNames = layers;
@@ -121,12 +152,11 @@ bool32 game_vulkan_init()
 		}
 		// TODO: Logging (successfully created vulkan instance)
 	}
-	// --------------------------------------------------
 
 
 
-	// ---------- create vulkan debug callback ----------
 	{
+		// create vulkan debug callback
 		if (enable_validation_layers)
 		{
 			// load vkCreateDebugUtilsMessengerEXT
@@ -152,12 +182,12 @@ bool32 game_vulkan_init()
 			}
 		}
 	}
-	// --------------------------------------------------
 
 
 
-	// ---------- create surface ------------------------
 	{
+		// create surface
+
 		bool32 result = vulkan_surface_create(context.instance, &context.surface);
 		if (!result)
 		{
@@ -170,12 +200,12 @@ bool32 game_vulkan_init()
 			return GAME_FAILURE;
 		}
 	}
-	// --------------------------------------------------
 
 
 
-	// ---------- pick physical device ------------------
 	{
+		// pick physical device
+
 		uint32 physical_device_count = 0;
 		vkEnumeratePhysicalDevices(context.instance, &physical_device_count, 0);
 
@@ -189,7 +219,6 @@ bool32 game_vulkan_init()
 			vkGetPhysicalDeviceProperties(physical_device, &physical_device_properties);
 
 			// find queue families for a physical device
-			QueueFamilyIndices indices;
 			uint32 queue_family_count;
 			vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &queue_family_count, 0);
 
@@ -204,11 +233,11 @@ bool32 game_vulkan_init()
 				// TODO: fill this in if need for other queue family arises
 				if (queue_family_properties.queueFlags & VK_QUEUE_GRAPHICS_BIT)
 				{
-					indices.graphics_family = i;
+					queue_family_indices.graphics_family = i;
 				}
 
 				// check if all indices have a value, if they do break the loop early
-				if (indices.graphics_family.has_value())
+				if (queue_family_indices.graphics_family.has_value())
 				{
 					queue_family_indices_is_complete = true;
 					break;
@@ -218,6 +247,7 @@ bool32 game_vulkan_init()
 			}
 
 			// search for other devices if they are not a dedicated gpu
+			// TODO: (potentially support multiple graphics cards)
 			if (queue_family_indices_is_complete && physical_device_properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
 			{
 				context.physical_device = physical_device;
@@ -233,15 +263,40 @@ bool32 game_vulkan_init()
 
 		// TODO: Log the picked physical device
 	}
-	// --------------------------------------------------
 
 
 
-	// ---------- create logical device -----------------
 	{
-		
+		// create logical device
+
+		// queues to be created with the logical device
+		float queue_priority = 1.0f;
+		VkDeviceQueueCreateInfo queue_info{};
+		queue_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+		queue_info.queueFamilyIndex = queue_family_indices.graphics_family.value();
+		queue_info.queueCount = 1;
+		queue_info.pQueuePriorities = &queue_priority;
+
+		// device creation
+		VkPhysicalDeviceFeatures device_features{};
+
+		VkDeviceCreateInfo device_info{};
+		device_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+		device_info.queueCreateInfoCount = 1;
+		device_info.pQueueCreateInfos = &queue_info;
+		// TODO: set layer info for older version (since deprecated)?
+		device_info.pEnabledFeatures = &device_features;
+
+		VkResult result = vkCreateDevice(context.physical_device, &device_info, 0, &context.device);
+		if (result != VK_SUCCESS)
+		{
+			// TODO: log failure
+			
+			return 1;
+		}
+
+		// TODO: log success
 	}
-	// --------------------------------------------------
 
 	return GAME_SUCCESS;
 }
