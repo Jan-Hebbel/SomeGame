@@ -31,6 +31,7 @@ struct GameVulkanContext
 	VkSurfaceKHR surface;
 	VkPhysicalDevice physical_device;
 	VkDevice device;
+	VkQueue graphics_queue;
 };
 
 global_variable GameVulkanContext context;
@@ -97,12 +98,12 @@ bool32 game_vulkan_init()
 		{
 			// check layer support
 			bool layers_supported = false;
-			uint32 layer_count = 0;
-			vkEnumerateInstanceLayerProperties(&layer_count, 0);
+			uint32 supported_layer_count = 0;
+			vkEnumerateInstanceLayerProperties(&supported_layer_count, 0);
 
 			// TODO: memory arena
-			std::vector<VkLayerProperties> layer_properties_dynamic_array;
-			vkEnumerateInstanceLayerProperties(&layer_count, layer_properties_dynamic_array.data());
+			std::vector<VkLayerProperties> layer_properties_dynamic_array(supported_layer_count);
+			vkEnumerateInstanceLayerProperties(&supported_layer_count, layer_properties_dynamic_array.data());
 
 			for (const auto &layer_properties : layer_properties_dynamic_array)
 			{
@@ -110,10 +111,13 @@ bool32 game_vulkan_init()
 				{
 					if (std::strcmp(layer_properties.layerName, layers[i]) == 0)
 					{
-						bool layers_supported = true;
+						layers_supported = true;
 						break;
 					}
 				}
+
+				if (layers_supported)
+					break;
 			}
 
 			if (layers_supported)
@@ -295,6 +299,9 @@ bool32 game_vulkan_init()
 			return 1;
 		}
 
+		// get handle to graphics queue
+		vkGetDeviceQueue(context.device, queue_family_indices.graphics_family.value(), 0, &context.graphics_queue);
+		
 		// TODO: log success
 	}
 
