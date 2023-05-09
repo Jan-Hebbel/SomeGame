@@ -111,6 +111,7 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
+    <ClCompile Include="src\platform\platform_logger.cpp" />
     <ClCompile Include="src\platform\platform_win32.cpp" />
     <ClCompile Include="src\renderer\placeholder.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
@@ -123,6 +124,7 @@
     <ClInclude Include="src\game\game_vulkan_helper.hpp" />
     <ClInclude Include="src\pch.hpp" />
     <ClInclude Include="src\platform\platform.hpp" />
+    <ClInclude Include="src\platform\platform_logger.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

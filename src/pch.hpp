@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#define internal static
+#define internal_function static
 #define local_persist static
 #define global_variable static
 
@@ -21,5 +21,8 @@ typedef float real32;
 typedef double real64;
 
 typedef unsigned int uint;
+
+constexpr bool32 GAME_SUCCESS = 0;
+constexpr bool32 GAME_FAILURE = 1;
 
 #endif

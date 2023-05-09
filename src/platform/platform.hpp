@@ -11,4 +11,7 @@ void *platform_get_window_handles();
 // takes in a path to a .wav file and plays it
 void platform_audio_play_file(const char *file_path);
 
+// log to console
+void platform_log(const char *message, ...);
+
 #endif

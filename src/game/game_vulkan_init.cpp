@@ -110,7 +110,7 @@ bool32 game_vulkan_init()
 		if (vkCreateInstance(&instance_info, 0, &context.instance))
 		{
 			// TODO: Logging (Failed to create vulkan instance! Exiting Game!)
-			return 1;
+			return GAME_FAILURE;
 		}
 		// TODO: Logging (successfully created vulkan instance)
 	}
@@ -160,7 +160,7 @@ bool32 game_vulkan_init()
 		else
 		{
 			// TODO: Logging (failed to create vulkan surface!)
-			return 1;
+			return GAME_FAILURE;
 		}
 	}
 	// --------------------------------------------------
@@ -198,9 +198,12 @@ bool32 game_vulkan_init()
 		if (context.physical_device == 0)
 		{
 			// TODO: Logging
-			return 1;
+			return GAME_FAILURE;
 		}
 	}
 	// --------------------------------------------------
-	return 0;
+
+	platform_log("%s\n", "test");
+
+	return GAME_SUCCESS;
 }

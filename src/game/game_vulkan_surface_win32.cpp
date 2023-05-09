@@ -8,11 +8,12 @@
 
 struct Win32WindowHandles
 {
+	HINSTANCE hinstance;
 	HWND hwnd;
 };
 
 // creates a win32 surface; returns 0 on success and 1 on failure
-internal bool32 vulkan_surface_create(VkInstance instance, VkSurfaceKHR *p_surface)
+internal_function bool32 vulkan_surface_create(VkInstance instance, VkSurfaceKHR *p_surface)
 {
 	Win32WindowHandles *p_window_handles = (Win32WindowHandles *)platform_get_window_handles();
 

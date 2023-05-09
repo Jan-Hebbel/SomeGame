@@ -21,11 +21,14 @@
 #include "pch.hpp"
 
 #include "platform/platform.hpp"
+#include "platform/platform_logger.hpp"
 
 #include "game/game.hpp"
 
 #include <windows.h>
 #include <xaudio2.h>
+
+#include <iostream>
 
 struct Win32WindowHandles
 {
@@ -67,7 +70,7 @@ global_variable Win32WindowHandles window_handles{};
 #define fourccDPDS 'sdpd'
 #endif
 
-internal HRESULT find_chunk(HANDLE hfile, DWORD fourcc, DWORD &dw_chunk_size, DWORD &dw_chunk_data_position)
+internal_function HRESULT find_chunk(HANDLE hfile, DWORD fourcc, DWORD &dw_chunk_size, DWORD &dw_chunk_data_position)
 {
 	HRESULT hr = S_OK;
 	if (INVALID_SET_FILE_POINTER == SetFilePointer(hfile, 0, NULL, FILE_BEGIN))
@@ -138,7 +141,7 @@ internal HRESULT find_chunk(HANDLE hfile, DWORD fourcc, DWORD &dw_chunk_size, DW
 	return S_OK;
 }
 
-internal HRESULT read_chunk_data(HANDLE hfile, void *buffer, DWORD buffer_size, DWORD buffer_offset)
+internal_function HRESULT read_chunk_data(HANDLE hfile, void *buffer, DWORD buffer_size, DWORD buffer_offset)
 {
 	HRESULT hr = S_OK;
 	if (INVALID_SET_FILE_POINTER == SetFilePointer(hfile, buffer_offset, NULL, FILE_BEGIN))
@@ -156,7 +159,7 @@ internal HRESULT read_chunk_data(HANDLE hfile, void *buffer, DWORD buffer_size, 
 }
 
 
-internal void platform_create_sound_device()
+internal_function void platform_create_sound_device()
 {
 	// ------ initialize XAudio2 ------
 	// initialize the COM library, sets the threads concurrency model
@@ -187,7 +190,7 @@ internal void platform_create_sound_device()
 	// --------------------------------
 }
 
-internal void platform_destroy_sound_device()
+internal_function void platform_destroy_sound_device()
 {
 	delete[] sound_device.p_data_buffer;
 	// TODO: cleanup XAudio2 thingy?
@@ -403,7 +406,7 @@ main_window_callback(HWND w_handle, UINT message, WPARAM wparam, LPARAM lparam)
 }
 
 // TODO: bool32 return type; not exiting in this function
-internal void platform_create_window(const char *title, int width, int height)
+internal_function void platform_create_window(const char *title, int width, int height)
 {	
 	WNDCLASSA w_class{};
 	w_class.style = CS_HREDRAW | CS_VREDRAW;
@@ -443,7 +446,7 @@ internal void platform_create_window(const char *title, int width, int height)
 	window_handles.hwnd = w_handle;
 }
 
-internal void platform_process_events()
+internal_function void platform_process_events()
 {
 	MSG message;
 	while (PeekMessage(&message, 0, 0, 0, PM_REMOVE))
@@ -460,6 +463,8 @@ internal void platform_process_events()
 
 int CALLBACK WinMain(_In_ HINSTANCE h_instance, _In_opt_ HINSTANCE h_prev_instance, _In_ PSTR cmd_line, _In_ int cmdshow)
 {
+	platform_logging_init();
+
 	LARGE_INTEGER perf_count_frequency_result;
 	QueryPerformanceFrequency(&perf_count_frequency_result);
 	int64 perf_count_frequency = perf_count_frequency_result.QuadPart;
@@ -507,8 +512,11 @@ int CALLBACK WinMain(_In_ HINSTANCE h_instance, _In_opt_ HINSTANCE h_prev_instan
 	}
 	
 	// cleanup
+	//game_vulkan_cleanup();
 	platform_destroy_sound_device();
 	//platform_destroy_window(); ????
+
+	platform_logging_free();
 	
 	return 0;
 }
