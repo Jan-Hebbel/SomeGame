@@ -14,7 +14,6 @@ void platform_logging_init()
 {
 	AllocConsole();
 	output_handle = GetStdHandle(STD_OUTPUT_HANDLE);
-	SetConsoleMode(output_handle, ENABLE_PROCESSED_OUTPUT);
 }
 
 void platform_log(const char *message, ...)
@@ -22,8 +21,8 @@ void platform_log(const char *message, ...)
 	va_list arg_ptr;
 	va_start(arg_ptr, message);
 	uint size = vsnprintf(0, 0, message, arg_ptr);
-	char *out_message = new char[size];
-	vsnprintf(out_message, size, message, arg_ptr);
+	char *out_message = new char[size+1];
+	vsnprintf(out_message, static_cast<size_t>(size)+1, message, arg_ptr);
 	va_end(arg_ptr);
 
 	WriteConsole(output_handle, out_message, size, 0, 0);

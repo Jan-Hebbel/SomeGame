@@ -32,14 +32,16 @@ struct GameVulkanContext
 	VkPhysicalDevice physical_device;
 	VkDevice device;
 	VkQueue graphics_queue;
+	VkQueue present_queue;
 };
 
 global_variable GameVulkanContext context;
 
 struct QueueFamilyIndices
 {
-	std::optional<uint32> graphics_family;
 	// fill this out as the need for more queue families arises
+	std::optional<uint32> graphics_family;
+	std::optional<uint32> present_family;
 };
 
 VKAPI_ATTR VkBool32 VKAPI_CALL vulkan_debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT type, const VkDebugUtilsMessengerCallbackDataEXT *p_callback_data, void *p_user_data)
@@ -234,14 +236,21 @@ bool32 game_vulkan_init()
 			bool queue_family_indices_is_complete = false;
 			for (const auto &queue_family_properties : queue_family_properties_array)
 			{
-				// TODO: fill this in if need for other queue family arises
+				// NOTE: there might be a change in logic necessary if for some reason another queue family is better
 				if (queue_family_properties.queueFlags & VK_QUEUE_GRAPHICS_BIT)
 				{
 					queue_family_indices.graphics_family = i;
 				}
 
+				VkBool32 present_support = false;
+				vkGetPhysicalDeviceSurfaceSupportKHR(physical_device, i, context.surface, &present_support);
+				if (present_support)
+				{
+					queue_family_indices.present_family = i;
+				}
+
 				// check if all indices have a value, if they do break the loop early
-				if (queue_family_indices.graphics_family.has_value())
+				if (queue_family_indices.graphics_family.has_value() && queue_family_indices.present_family.has_value())
 				{
 					queue_family_indices_is_complete = true;
 					break;
@@ -281,7 +290,7 @@ bool32 game_vulkan_init()
 		queue_info.queueCount = 1;
 		queue_info.pQueuePriorities = &queue_priority;
 
-		// device creation
+		// device creation; unused for now
 		VkPhysicalDeviceFeatures device_features{};
 
 		VkDeviceCreateInfo device_info{};
@@ -301,6 +310,7 @@ bool32 game_vulkan_init()
 
 		// get handle to graphics queue
 		vkGetDeviceQueue(context.device, queue_family_indices.graphics_family.value(), 0, &context.graphics_queue);
+		vkGetDeviceQueue(context.device, queue_family_indices.present_family.value(), 1, &context.present_queue);
 		
 		// TODO: log success
 	}
