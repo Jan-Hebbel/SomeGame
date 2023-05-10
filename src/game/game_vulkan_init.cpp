@@ -310,7 +310,7 @@ bool32 game_vulkan_init()
 
 		// get handle to graphics queue
 		vkGetDeviceQueue(context.device, queue_family_indices.graphics_family.value(), 0, &context.graphics_queue);
-		vkGetDeviceQueue(context.device, queue_family_indices.present_family.value(), 1, &context.present_queue);
+		platform_log("testtesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttest\n");
 		
 		// TODO: log success
 	}
