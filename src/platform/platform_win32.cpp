@@ -36,8 +36,8 @@ struct Win32WindowHandles
 
 struct Win32WindowDimensions
 {
-	int width;
-	int height;
+	uint width;
+	uint height;
 };
 
 struct Win32SoundOutput
@@ -46,9 +46,13 @@ struct Win32SoundOutput
 	BYTE *p_data_buffer;
 };
 
+constexpr uint WIDTH = 1440;
+constexpr uint HEIGHT = 810;
+
 global_variable bool32 should_close = 1;
 global_variable Win32SoundOutput sound_device{};
 global_variable Win32WindowHandles window_handles{};
+global_variable Win32WindowDimensions window_dimensions = { WIDTH, HEIGHT };
 
 // big endian
 #ifdef _XBOX
@@ -282,6 +286,12 @@ void *platform_get_window_handles()
 	return (void *)&window_handles;
 }
 
+void platform_get_window_dimensions(uint *width, uint *height)
+{
+	*width = window_dimensions.width;
+	*height = window_dimensions.height;
+}
+
 void platform_error_message_window(const char *title, const char *message)
 {
 	MessageBoxA(window_handles.hwnd, message, title, MB_OK | MB_ICONERROR);
@@ -430,10 +440,10 @@ internal_function void platform_create_window(const char *title, int width, int 
 		w_class.lpszClassName,
 		title,
 		WS_OVERLAPPEDWINDOW | WS_VISIBLE,
-		CW_USEDEFAULT, 
-		CW_USEDEFAULT,
-		CW_USEDEFAULT, 
-		CW_USEDEFAULT,
+		100, 
+		100,
+		width, 
+		height,
 		0,
 		0,
 		w_class.hInstance,
@@ -473,7 +483,8 @@ int CALLBACK WinMain(_In_ HINSTANCE h_instance, _In_opt_ HINSTANCE h_prev_instan
 	int64 perf_count_frequency = perf_count_frequency_result.QuadPart;
 
 	window_handles.hinstance = h_instance;
-	platform_create_window("SomeGame", 1280, 720);
+
+	platform_create_window("SomeGame", window_dimensions.width, window_dimensions.height);
 	platform_create_sound_device();
 	// TODO: remove this
 	platform_audio_play_file("res/audio/test.wav");

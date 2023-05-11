@@ -8,6 +8,9 @@
 // get window handles
 void *platform_get_window_handles();
 
+// get window width and height
+void platform_get_window_dimensions(uint *width, uint *height);
+
 // takes in a path to a .wav file and plays it
 void platform_audio_play_file(const char *file_path);
 
