@@ -81,10 +81,10 @@ internal_function HRESULT find_chunk(HANDLE hfile, DWORD fourcc, DWORD &dw_chunk
 		return HRESULT_FROM_WIN32(GetLastError());
 	}
 
-	DWORD dw_chunk_type;
-	DWORD dw_chunk_data_size;
+	DWORD dw_chunk_type = 0;
+	DWORD dw_chunk_data_size = 0;
 	DWORD dw_riff_data_size = 0;
-	DWORD dw_file_type;
+	DWORD dw_file_type = 0;
 	DWORD bytes_read = 0;
 	DWORD dw_offset = 0;
 

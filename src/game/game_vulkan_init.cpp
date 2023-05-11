@@ -40,9 +40,10 @@ struct GameVulkanContext
 	std::vector<VkImage> swapchain_images;
 	VkFormat swapchain_image_format;
 	VkExtent2D swapchain_image_extent;
+	std::vector<VkImageView> swapchain_image_views;
 };
 
-global_variable GameVulkanContext context;
+global_variable GameVulkanContext context{};
 
 struct QueueFamilyIndices
 {
@@ -475,6 +476,39 @@ bool32 game_vulkan_init()
 
 	{
 		// create image views
+
+		context.swapchain_image_views.resize(context.swapchain_images.size());
+
+		for (uint i = 0; i < context.swapchain_image_views.size(); ++i)
+		{
+			VkImageViewCreateInfo image_view_info{};
+			image_view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+			image_view_info.image = context.swapchain_images[i];
+			image_view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+			image_view_info.format = context.swapchain_image_format;
+			image_view_info.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+			image_view_info.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+			image_view_info.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+			image_view_info.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+			image_view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			image_view_info.subresourceRange.baseMipLevel = 0;
+			image_view_info.subresourceRange.levelCount = 1;
+			image_view_info.subresourceRange.baseArrayLayer = 0;
+			image_view_info.subresourceRange.layerCount = 1;
+
+			VkResult result = vkCreateImageView(context.device, &image_view_info, 0, &context.swapchain_image_views[i]);
+			if (result != VK_SUCCESS)
+			{
+				// TODO: log failure
+			}
+
+			// TODO: log success
+		}
+	}
+
+	{
+		// create graphics pipeline
+
 
 	}
 
