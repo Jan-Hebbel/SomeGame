@@ -18,6 +18,7 @@
 #include <optional>
 #include <set>
 #include <algorithm>
+#include <fstream>
 
 #ifdef _DEBUG
 constexpr bool enable_validation_layers = true;
@@ -63,6 +64,25 @@ VKAPI_ATTR VkBool32 VKAPI_CALL vulkan_debug_callback(VkDebugUtilsMessageSeverity
 	platform_log("%s\n\r", p_callback_data->pMessage);
 
 	return VK_FALSE;
+}
+
+internal_function std::vector<char> read_file(const std::string &filename)
+{
+	std::vector<char> buffer;
+
+	std::ifstream file(filename, std::ios::ate | std::ios::binary);
+	if (!file.is_open())
+	{
+		return buffer;
+	}
+
+	size_t file_size = (size_t)file.tellg();
+	buffer.resize(file_size);
+	file.seekg(0);
+	file.read(buffer.data(), file_size);
+	file.close();
+
+	return buffer;
 }
 
 bool32 game_vulkan_init()
@@ -509,7 +529,45 @@ bool32 game_vulkan_init()
 	{
 		// create graphics pipeline
 
+		auto vert_shader_code = read_file("res/shaders/vert.spv");
+		auto frag_shader_code = read_file("res/shaders/frag.spv");
 
+		// wrap vertex shader code in VkShaderModule object
+		VkShaderModuleCreateInfo vertex_shader_module_info{};
+		vertex_shader_module_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+		vertex_shader_module_info.codeSize = vert_shader_code.size();
+		vertex_shader_module_info.pCode = reinterpret_cast<const uint32_t *>(vert_shader_code.data());
+
+		VkShaderModule vertex_shader_module;
+		vkCreateShaderModule(context.device, &vertex_shader_module_info, 0, &vertex_shader_module);
+
+		VkShaderModuleCreateInfo fragment_shader_module_info{};
+		fragment_shader_module_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+		fragment_shader_module_info.codeSize = frag_shader_code.size();
+		fragment_shader_module_info.pCode = reinterpret_cast<const uint32_t *>(frag_shader_code.data());
+
+		VkShaderModule fragment_shader_module;
+		vkCreateShaderModule(context.device, &fragment_shader_module_info, 0, &fragment_shader_module);
+
+		// Do something with the shader modules
+		VkPipelineShaderStageCreateInfo vert_shader_stage_info{};
+		vert_shader_stage_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		vert_shader_stage_info.stage = VK_SHADER_STAGE_VERTEX_BIT;
+		vert_shader_stage_info.module = vertex_shader_module;
+		vert_shader_stage_info.pName = "main";
+
+		VkPipelineShaderStageCreateInfo frag_shader_stage_info{};
+		vert_shader_stage_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		vert_shader_stage_info.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+		vert_shader_stage_info.module = fragment_shader_module;
+		vert_shader_stage_info.pName = "main";
+
+		VkPipelineShaderStageCreateInfo shader_stage_create_infos[] = { vert_shader_stage_info, frag_shader_stage_info };
+
+		// TODO: incomplete
+
+		vkDestroyShaderModule(context.device, vertex_shader_module, 0);
+		vkDestroyShaderModule(context.device, fragment_shader_module, 0);
 	}
 
 	return GAME_SUCCESS;

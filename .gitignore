@@ -35,8 +35,9 @@ bld/
 bin/
 bin-int/
 # ignore res?
-res/
+res/audio/
 TODO.txt
+*.spv
 
 # Visual Studio 2015/2017 cache/options directory
 .vs/

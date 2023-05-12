@@ -117,6 +117,11 @@
     <ClInclude Include="src\platform\platform.hpp" />
     <ClInclude Include="src\platform\platform_logger.hpp" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="res\shaders\compile.bat" />
+    <None Include="res\shaders\shader.frag" />
+    <None Include="res\shaders\shader.vert" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
