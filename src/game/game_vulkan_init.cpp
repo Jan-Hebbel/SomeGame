@@ -46,6 +46,8 @@ struct GameVulkanContext
 	VkPipelineLayout pipeline_layout;
 	VkPipeline graphics_pipeline;
 	std::vector<VkFramebuffer> swapchain_framebuffers;
+	VkCommandPool command_pool;
+	VkCommandBuffer command_buffer;
 };
 
 global_variable GameVulkanContext context{};
@@ -119,9 +121,10 @@ bool32 game_vulkan_init()
 
 	SwapchainDetails swapchain_support;
 
-	{
-		// create vulkan instance
 
+
+	// create vulkan instance
+	{
 		VkApplicationInfo app_info{};
 		app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
 		app_info.pApplicationName = "Game"; // TODO: real name
@@ -203,8 +206,8 @@ bool32 game_vulkan_init()
 
 
 
+	// create vulkan debug callback
 	{
-		// create vulkan debug callback
 		if (enable_validation_layers)
 		{
 			// load vkCreateDebugUtilsMessengerEXT
@@ -233,9 +236,8 @@ bool32 game_vulkan_init()
 
 
 
+	// create surface
 	{
-		// create surface
-
 		bool32 result = vulkan_surface_create(context.instance, &context.surface);
 		if (!result)
 		{
@@ -251,9 +253,8 @@ bool32 game_vulkan_init()
 
 
 
+	// pick physical device
 	{
-		// pick physical device
-
 		uint32 physical_device_count = 0;
 		vkEnumeratePhysicalDevices(context.instance, &physical_device_count, 0);
 
@@ -354,9 +355,8 @@ bool32 game_vulkan_init()
 
 
 
+	// create logical device
 	{
-		// create logical device
-
 		// queues to be created with the logical device
 		std::vector<VkDeviceQueueCreateInfo> queue_infos{};
 		std::set<uint32_t> unique_queue_family_indices = { queue_family_indices.graphics_family.value(), queue_family_indices.present_family.value() };
@@ -388,8 +388,7 @@ bool32 game_vulkan_init()
 		if (result != VK_SUCCESS)
 		{
 			// TODO: log failure
-			
-			return 1;
+			return GAME_FAILURE;
 		}
 
 		// get handle to graphics queue; these are the same since we chose a queue family that can do both
@@ -401,9 +400,8 @@ bool32 game_vulkan_init()
 
 
 
+	// create swap chain
 	{
-		// create swap chain
-
 		VkSurfaceCapabilitiesKHR capabilities{};
 		vkGetPhysicalDeviceSurfaceCapabilitiesKHR(context.physical_device, context.surface, &capabilities);
 
@@ -486,6 +484,7 @@ bool32 game_vulkan_init()
 		if (result != VK_SUCCESS)
 		{
 			// TODO: log failure
+			return GAME_FAILURE;
 		}
 
 		vkGetSwapchainImagesKHR(context.device, context.swapchain, &min_image_count, 0);
@@ -500,9 +499,8 @@ bool32 game_vulkan_init()
 
 
 
+	// create image views
 	{
-		// create image views
-
 		context.swapchain_image_views.resize(context.swapchain_images.size());
 
 		for (uint i = 0; i < context.swapchain_image_views.size(); ++i)
@@ -526,6 +524,7 @@ bool32 game_vulkan_init()
 			if (result != VK_SUCCESS)
 			{
 				// TODO: log failure
+				return GAME_FAILURE;
 			}
 
 			// TODO: log success
@@ -534,9 +533,8 @@ bool32 game_vulkan_init()
 
 
 
+	// create render pass
 	{
-		// create render pass
-
 		VkAttachmentDescription color_attachment_description{
 			.format = context.swapchain_image_format,
 			.samples = VK_SAMPLE_COUNT_1_BIT,
@@ -571,16 +569,16 @@ bool32 game_vulkan_init()
 		if (result != VK_SUCCESS)
 		{
 			// TODO: log failure
+			return GAME_FAILURE;
 		}
 
 		// TODO: log success
 	}
 
+	
 
-
+	// create graphics pipeline
 	{
-		// create graphics pipeline
-
 		auto vert_shader_code = read_file("res/shaders/vert.spv");
 		auto frag_shader_code = read_file("res/shaders/frag.spv");
 
@@ -724,6 +722,7 @@ bool32 game_vulkan_init()
 		if (result != VK_SUCCESS)
 		{
 			// TODO: log failure
+			return GAME_FAILURE;
 		}
 
 		// TODO: log success
@@ -734,9 +733,8 @@ bool32 game_vulkan_init()
 
 
 
+	// create framebuffers
 	{
-		// create framebuffers
-
 		context.swapchain_framebuffers.resize(context.swapchain_image_views.size());
 
 		for (size_t i = 0; i < context.swapchain_image_views.size(); ++i)
@@ -759,10 +757,59 @@ bool32 game_vulkan_init()
 			if (result != VK_SUCCESS)
 			{
 				// TODO: log failure
+				return GAME_FAILURE;
 			}
 
 			// TODO: log success
 		}
+	}
+
+
+
+	// create command pool
+	{
+		VkCommandPoolCreateInfo pool_info{
+			.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+			.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+			.queueFamilyIndex = queue_family_indices.graphics_family.value(),
+		};
+
+		VkResult result = vkCreateCommandPool(context.device, &pool_info, 0, &context.command_pool);
+		if (result != VK_SUCCESS)
+		{
+			// TODO: log failure
+			return GAME_FAILURE;
+		}
+
+		// TODO: log success
+	}
+
+
+
+	// create command buffer
+	{
+		VkCommandBufferAllocateInfo allocate_info{
+			.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+			.commandPool = context.command_pool,
+			.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+			.commandBufferCount = 1,
+		};
+
+		VkResult result = vkAllocateCommandBuffers(context.device, &allocate_info, &context.command_buffer);
+		if (result != VK_SUCCESS)
+		{
+			// TODO: log failure
+			return GAME_FAILURE;
+		}
+
+		// TODO: log success
+	}
+
+
+
+
+	{
+
 	}
 
 	return GAME_SUCCESS;
