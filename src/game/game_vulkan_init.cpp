@@ -45,6 +45,7 @@ struct GameVulkanContext
 	VkRenderPass render_pass;
 	VkPipelineLayout pipeline_layout;
 	VkPipeline graphics_pipeline;
+	std::vector<VkFramebuffer> swapchain_framebuffers;
 };
 
 global_variable GameVulkanContext context{};
@@ -735,6 +736,33 @@ bool32 game_vulkan_init()
 
 	{
 		// create framebuffers
+
+		context.swapchain_framebuffers.resize(context.swapchain_image_views.size());
+
+		for (size_t i = 0; i < context.swapchain_image_views.size(); ++i)
+		{
+			VkImageView attachments[] = {
+				context.swapchain_image_views[i],
+			};
+
+			VkFramebufferCreateInfo framebuffer_info{
+				.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+				.renderPass = context.render_pass,
+				.attachmentCount = 1,
+				.pAttachments = attachments,
+				.width = context.swapchain_image_extent.width,
+				.height = context.swapchain_image_extent.height,
+				.layers = 1,
+			};
+
+			VkResult result = vkCreateFramebuffer(context.device, &framebuffer_info, 0, context.swapchain_framebuffers.data());
+			if (result != VK_SUCCESS)
+			{
+				// TODO: log failure
+			}
+
+			// TODO: log success
+		}
 	}
 
 	return GAME_SUCCESS;
