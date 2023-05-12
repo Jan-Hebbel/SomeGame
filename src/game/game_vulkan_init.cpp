@@ -42,6 +42,9 @@ struct GameVulkanContext
 	VkFormat swapchain_image_format;
 	VkExtent2D swapchain_image_extent;
 	std::vector<VkImageView> swapchain_image_views;
+	VkRenderPass render_pass;
+	VkPipelineLayout pipeline_layout;
+	VkPipeline graphics_pipeline;
 };
 
 global_variable GameVulkanContext context{};
@@ -494,6 +497,8 @@ bool32 game_vulkan_init()
 		// TODO: log success
 	}
 
+
+
 	{
 		// create image views
 
@@ -526,6 +531,52 @@ bool32 game_vulkan_init()
 		}
 	}
 
+
+
+	{
+		// create render pass
+
+		VkAttachmentDescription color_attachment_description{
+			.format = context.swapchain_image_format,
+			.samples = VK_SAMPLE_COUNT_1_BIT,
+			.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+			.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+			.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+			.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+			.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+			.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+		};
+
+		VkAttachmentReference color_attachment_reference{
+			.attachment = 0,
+			.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+		};
+
+		VkSubpassDescription subpass{
+			.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+			.colorAttachmentCount = 1,
+			.pColorAttachments = &color_attachment_reference,
+		};
+
+		VkRenderPassCreateInfo render_pass_info{
+			.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+			.attachmentCount = 1,
+			.pAttachments = &color_attachment_description,
+			.subpassCount = 1,
+			.pSubpasses = &subpass,
+		};
+
+		VkResult result = vkCreateRenderPass(context.device, &render_pass_info, 0, &context.render_pass);
+		if (result != VK_SUCCESS)
+		{
+			// TODO: log failure
+		}
+
+		// TODO: log success
+	}
+
+
+
 	{
 		// create graphics pipeline
 
@@ -557,17 +608,133 @@ bool32 game_vulkan_init()
 		vert_shader_stage_info.pName = "main";
 
 		VkPipelineShaderStageCreateInfo frag_shader_stage_info{};
-		vert_shader_stage_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-		vert_shader_stage_info.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-		vert_shader_stage_info.module = fragment_shader_module;
-		vert_shader_stage_info.pName = "main";
+		frag_shader_stage_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		frag_shader_stage_info.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+		frag_shader_stage_info.module = fragment_shader_module;
+		frag_shader_stage_info.pName = "main";
 
 		VkPipelineShaderStageCreateInfo shader_stage_create_infos[] = { vert_shader_stage_info, frag_shader_stage_info };
 
-		// TODO: incomplete
+		VkDynamicState dynamic_states[] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+		VkPipelineDynamicStateCreateInfo dynamic_state_info{};
+		dynamic_state_info.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+		dynamic_state_info.dynamicStateCount = sizeof(shader_stage_create_infos) / sizeof(shader_stage_create_infos[0]);
+		dynamic_state_info.pDynamicStates = dynamic_states;
+
+		VkPipelineVertexInputStateCreateInfo vertex_input_info{};
+		vertex_input_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+		vertex_input_info.vertexBindingDescriptionCount = 0;
+		vertex_input_info.vertexAttributeDescriptionCount = 0;
+
+		VkPipelineInputAssemblyStateCreateInfo input_assembly_info{};
+		input_assembly_info.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+		input_assembly_info.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+		input_assembly_info.primitiveRestartEnable = VK_FALSE;
+
+		// NOTE: we are using dynamic state, so we need to specify viewport and scissor at drawing time, instead of here
+		//VkViewport viewport{ 
+		//	.x = 0.0f, 
+		//	.y = 0.0f, 
+		//	.width = context.swapchain_image_extent.width, 
+		//	.height = context.swapchain_image_extent.height, 
+		//	.minDepth = 0.0f, 
+		//	.maxDepth = 1.0f
+		//};
+
+		//VkRect2D scissor{
+		//	.offset = { 0, 0 },
+		//	.extent = context.swapchain_image_extent
+		//};
+
+		VkPipelineViewportStateCreateInfo viewport_info{
+			.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+			.viewportCount = 1,
+			//.pViewports = &viewport,
+			.scissorCount = 1,
+			//.pScissors = &scissors,
+		};
+
+		VkPipelineRasterizationStateCreateInfo rasterization_info{
+			.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+			.depthClampEnable = VK_FALSE,
+			.rasterizerDiscardEnable = VK_FALSE,
+			.polygonMode = VK_POLYGON_MODE_FILL,
+			.cullMode = VK_CULL_MODE_BACK_BIT,
+			.frontFace = VK_FRONT_FACE_CLOCKWISE,
+			.depthBiasEnable = VK_FALSE, // NOTE: this could be used for shadow mapping
+			.lineWidth = 1.0f,
+		};
+
+		VkPipelineMultisampleStateCreateInfo multisampling{
+			.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+			.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
+			.sampleShadingEnable = VK_FALSE,
+		};
+
+		VkPipelineColorBlendAttachmentState color_blend_attachment{
+			.blendEnable = VK_FALSE,
+			.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+			.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+			.colorBlendOp = VK_BLEND_OP_ADD,
+			.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+			.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
+			.alphaBlendOp = VK_BLEND_OP_ADD,
+			.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+		};
+
+		VkPipelineColorBlendStateCreateInfo color_blending{
+			.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+			.logicOpEnable = VK_FALSE,
+			.logicOp = VK_LOGIC_OP_COPY,
+			.attachmentCount = 1,
+			.pAttachments = &color_blend_attachment,
+			.blendConstants = { 0.0f, 0.0f, 0.0f, 0.0f },
+		};
+
+		VkPipelineLayoutCreateInfo pipeline_layout_info{
+			.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+		};
+
+		VkResult result = vkCreatePipelineLayout(context.device, &pipeline_layout_info, 0, &context.pipeline_layout);
+		if (result != VK_SUCCESS)
+		{
+			// TODO: log failure
+		}
+
+		// TODO: log success
+
+		VkGraphicsPipelineCreateInfo pipeline_info{
+			.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+			.stageCount = 2,
+			.pStages = shader_stage_create_infos,
+			.pVertexInputState = &vertex_input_info,
+			.pInputAssemblyState = &input_assembly_info,
+			.pViewportState = &viewport_info,
+			.pRasterizationState = &rasterization_info,
+			.pMultisampleState = &multisampling,
+			.pColorBlendState = &color_blending,
+			.pDynamicState = &dynamic_state_info,
+			.layout = context.pipeline_layout,
+			.renderPass = context.render_pass,
+			.subpass = 0,
+		};
+
+		result = vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &pipeline_info, 0, &context.graphics_pipeline);
+		if (result != VK_SUCCESS)
+		{
+			// TODO: log failure
+		}
+
+		// TODO: log success
 
 		vkDestroyShaderModule(context.device, vertex_shader_module, 0);
 		vkDestroyShaderModule(context.device, fragment_shader_module, 0);
+	}
+
+
+
+	{
+		// create framebuffers
 	}
 
 	return GAME_SUCCESS;
