@@ -12,5 +12,5 @@ void game_update()
 
 void game_render()
 {
-	
+	bool32 result = draw_frame();
 }

@@ -529,6 +529,9 @@ int CALLBACK WinMain(_In_ HINSTANCE h_instance, _In_opt_ HINSTANCE h_prev_instan
 		// end of calculating performance metrics
 	}
 	
+	// don't crash on closing the application; TODO: is this needed?
+	game_wait_idle();
+
 	// cleanup
 	//game_vulkan_cleanup();
 	platform_destroy_sound_device();

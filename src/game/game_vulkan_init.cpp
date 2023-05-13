@@ -48,6 +48,9 @@ struct GameVulkanContext
 	std::vector<VkFramebuffer> swapchain_framebuffers;
 	VkCommandPool command_pool;
 	VkCommandBuffer command_buffer;
+	VkSemaphore image_available_semaphore;
+	VkSemaphore render_finished_semaphore;
+	VkFence in_flight_fence;
 };
 
 global_variable GameVulkanContext context{};
@@ -89,6 +92,109 @@ internal_function std::vector<char> read_file(const std::string &filename)
 	file.close();
 
 	return buffer;
+}
+
+internal_function bool32 record_command_buffer(VkCommandBuffer command_buffer, uint32 image_index)
+{
+	VkCommandBufferBeginInfo begin_info{
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+	};
+
+	if (VK_SUCCESS != vkBeginCommandBuffer(command_buffer, &begin_info))
+	{
+		return GAME_FAILURE;
+	}
+
+	VkClearValue clear_color{ {{0.0f, 0.0f, 0.0f, 1.0f}} };
+
+	VkRenderPassBeginInfo render_pass_info{
+		.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+		.renderPass = context.render_pass,
+		.framebuffer = context.swapchain_framebuffers[image_index],
+		.renderArea = { {0, 0}, context.swapchain_image_extent },
+		.clearValueCount = 1,
+		.pClearValues = &clear_color,
+	};
+
+	vkCmdBeginRenderPass(command_buffer, &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
+
+	vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context.graphics_pipeline);
+
+	VkViewport viewport{ 
+		.x = 0.0f, .y = 0.0f, 
+		.width = static_cast<float>(context.swapchain_image_extent.width), 
+		.height = static_cast<float>(context.swapchain_image_extent.height),
+		.minDepth = 0.0f, .maxDepth = 1.0f
+	};
+	vkCmdSetViewport(command_buffer, 0, 1, &viewport);
+
+	VkRect2D scissor{
+		.offset = { 0, 0 },
+		.extent = context.swapchain_image_extent,
+	};
+	vkCmdSetScissor(command_buffer, 0, 1, &scissor);
+
+	vkCmdDraw(command_buffer, 3, 1, 0, 0);
+
+	vkCmdEndRenderPass(command_buffer);
+
+	if (VK_SUCCESS != vkEndCommandBuffer(command_buffer))
+	{
+		// TODO: log failure
+		return GAME_FAILURE;
+	}
+
+	return GAME_SUCCESS;
+}
+
+bool32 draw_frame()
+{
+	// wait for the previous frame to finish
+	vkWaitForFences(context.device, 1, &context.in_flight_fence, VK_TRUE, UINT64_MAX);
+	vkResetFences(context.device, 1, &context.in_flight_fence);
+
+	// acquire an image from the swapchain
+	uint32 image_index;
+	vkAcquireNextImageKHR(context.device, context.swapchain, UINT64_MAX, context.image_available_semaphore, VK_NULL_HANDLE, &image_index);
+
+	// record a command buffer that draws the frame onto that image
+	vkResetCommandBuffer(context.command_buffer, 0);
+	record_command_buffer(context.command_buffer, image_index);
+
+	// submit the recorded command buffer
+	VkSemaphore wait_semaphores[] = { context.image_available_semaphore };
+	VkSemaphore signal_semaphores[] = { context.render_finished_semaphore };
+	VkPipelineStageFlags wait_stages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+	VkSubmitInfo submit_info{
+		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+		.waitSemaphoreCount = 1,
+		.pWaitSemaphores = wait_semaphores,
+		.pWaitDstStageMask = wait_stages,
+		.commandBufferCount = 1,
+		.pCommandBuffers = &context.command_buffer,
+		.signalSemaphoreCount = 1,
+		.pSignalSemaphores = signal_semaphores
+	};
+	if (VK_SUCCESS != vkQueueSubmit(context.graphics_queue, 1, &submit_info, context.in_flight_fence))
+	{
+		// TODO: log failure
+		return GAME_FAILURE;
+	}
+	// TODO: log success?
+
+	// present the swap chain image
+	VkSwapchainKHR swapchains[] = { context.swapchain };
+	VkPresentInfoKHR present_info{
+		.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+		.waitSemaphoreCount = 1,
+		.pWaitSemaphores = signal_semaphores,
+		.swapchainCount = 1,
+		.pSwapchains = swapchains,
+		.pImageIndices = &image_index,
+	};
+	vkQueuePresentKHR(context.present_queue, &present_info);
+
+	return GAME_SUCCESS;
 }
 
 bool32 game_vulkan_init()
@@ -557,12 +663,23 @@ bool32 game_vulkan_init()
 			.pColorAttachments = &color_attachment_reference,
 		};
 
+		VkSubpassDependency dependency{
+			.srcSubpass = VK_SUBPASS_EXTERNAL,
+			.dstSubpass = 0,
+			.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+			.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+			.srcAccessMask = 0,
+			.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+		};
+
 		VkRenderPassCreateInfo render_pass_info{
 			.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
 			.attachmentCount = 1,
 			.pAttachments = &color_attachment_description,
 			.subpassCount = 1,
 			.pSubpasses = &subpass,
+			.dependencyCount = 1,
+			.pDependencies = &dependency,
 		};
 
 		VkResult result = vkCreateRenderPass(context.device, &render_pass_info, 0, &context.render_pass);
@@ -753,7 +870,7 @@ bool32 game_vulkan_init()
 				.layers = 1,
 			};
 
-			VkResult result = vkCreateFramebuffer(context.device, &framebuffer_info, 0, context.swapchain_framebuffers.data());
+			VkResult result = vkCreateFramebuffer(context.device, &framebuffer_info, 0, &context.swapchain_framebuffers[i]);
 			if (result != VK_SUCCESS)
 			{
 				// TODO: log failure
@@ -807,9 +924,26 @@ bool32 game_vulkan_init()
 
 
 
-
+	// create synchronization objects
 	{
+		VkSemaphoreCreateInfo semaphore_info{
+			.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
+		};
 
+		VkFenceCreateInfo fence_info{
+			.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+			.flags = VK_FENCE_CREATE_SIGNALED_BIT,
+		};
+
+		if (VK_SUCCESS != vkCreateSemaphore(context.device, &semaphore_info, 0, &context.image_available_semaphore) ||
+			VK_SUCCESS != vkCreateSemaphore(context.device, &semaphore_info, 0, &context.render_finished_semaphore) ||
+			VK_SUCCESS != vkCreateFence(context.device, &fence_info, 0, &context.in_flight_fence))
+		{
+			// TODO: log failure
+			return GAME_FAILURE;
+		}
+
+		// TODO: log success
 	}
 
 	return GAME_SUCCESS;
@@ -818,4 +952,9 @@ bool32 game_vulkan_init()
 void game_vulkan_cleanup()
 {
 	// TODO
+}
+
+void game_wait_idle()
+{
+	vkDeviceWaitIdle(context.device);
 }
