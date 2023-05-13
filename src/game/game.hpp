@@ -7,7 +7,6 @@
 
 bool32 game_vulkan_init();
 void game_vulkan_cleanup();
-bool32 draw_frame();
 void game_wait_idle();
 
 void game_update();

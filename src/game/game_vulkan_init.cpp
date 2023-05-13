@@ -2,6 +2,7 @@
 
 #include "game/game.hpp"
 #include "game/game_vulkan.hpp"
+#include "game/game_vulkan_internal.hpp"
 #include "platform/platform.hpp"
 
 // TODO: other operating systems
@@ -47,11 +48,14 @@ struct GameVulkanContext
 	VkPipeline graphics_pipeline;
 	std::vector<VkFramebuffer> swapchain_framebuffers;
 	VkCommandPool command_pool;
-	VkCommandBuffer command_buffer;
-	VkSemaphore image_available_semaphore;
-	VkSemaphore render_finished_semaphore;
-	VkFence in_flight_fence;
+	std::vector<VkCommandBuffer> command_buffers;
+	std::vector<VkSemaphore> image_available_semaphores;
+	std::vector<VkSemaphore> render_finished_semaphores;
+	std::vector<VkFence> in_flight_fences;
+	uint32 current_frame = 0;
 };
+
+constexpr uint MAX_FRAMES_IN_FLIGHT = 2;
 
 global_variable GameVulkanContext context{};
 
@@ -147,23 +151,283 @@ internal_function bool32 record_command_buffer(VkCommandBuffer command_buffer, u
 	return GAME_SUCCESS;
 }
 
+void cleanup_swapchain()
+{
+	for (size_t i = 0; i < context.swapchain_framebuffers.size(); ++i)
+	{
+		vkDestroyFramebuffer(context.device, context.swapchain_framebuffers[i], 0);
+	}
+
+	for (size_t i = 0; i < context.swapchain_image_views.size(); ++i)
+	{
+		vkDestroyImageView(context.device, context.swapchain_image_views[i], 0);
+	}
+
+	vkDestroySwapchainKHR(context.device, context.swapchain, 0);
+}
+
+SwapchainDetails get_swapchain_support_details(VkPhysicalDevice physical_device)
+{
+	SwapchainDetails swapchain_support{};
+	uint32_t format_count;
+	vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device, context.surface, &format_count, 0);
+	if (format_count > 0)
+	{
+		swapchain_support.surface_formats.resize(format_count);
+		vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device, context.surface, &format_count, swapchain_support.surface_formats.data());
+	}
+	uint32_t present_mode_count;
+	vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device, context.surface, &present_mode_count, 0);
+	if (present_mode_count > 0)
+	{
+		swapchain_support.present_modes.resize(present_mode_count);
+		vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device, context.surface, &present_mode_count, swapchain_support.present_modes.data());
+	}
+	return swapchain_support;
+}
+
+QueueFamilyIndices get_queue_family_indices(VkPhysicalDevice physical_device)
+{
+	QueueFamilyIndices queue_family_indices{};
+	uint32 queue_family_count;
+	vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &queue_family_count, 0);
+	// TODO: vector?
+	std::vector<VkQueueFamilyProperties> queue_family_properties_array(queue_family_count);
+	vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &queue_family_count, queue_family_properties_array.data());
+
+	int i = 0;
+	for (const auto &queue_family_properties : queue_family_properties_array)
+	{
+		// NOTE: there might be a change in logic necessary if for some reason another queue family is better
+		if (queue_family_properties.queueFlags & VK_QUEUE_GRAPHICS_BIT)
+		{
+			queue_family_indices.graphics_family = i;
+		}
+
+		VkBool32 present_support = false;
+		vkGetPhysicalDeviceSurfaceSupportKHR(physical_device, i, context.surface, &present_support);
+		if (present_support)
+		{
+			queue_family_indices.present_family = i;
+		}
+
+		// check if all indices have a value, if they do break the loop early
+		if (queue_family_indices.graphics_family.has_value() && queue_family_indices.present_family.has_value())
+		{
+			break;
+		}
+
+		++i;
+	}
+
+	return queue_family_indices;
+}
+
+bool32 create_swapchain()
+{
+	SwapchainDetails swapchain_support = get_swapchain_support_details(context.physical_device);
+	QueueFamilyIndices queue_family_indices = get_queue_family_indices(context.physical_device);
+
+	VkSurfaceCapabilitiesKHR capabilities{};
+	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(context.physical_device, context.surface, &capabilities);
+
+	VkSwapchainCreateInfoKHR swapchain_info{};
+	swapchain_info.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+	swapchain_info.surface = context.surface;
+	// choose image count
+	uint32 min_image_count = capabilities.minImageCount + 1; // this will most likely equal 3
+	if (min_image_count > capabilities.maxImageCount && capabilities.maxImageCount != 0)
+		min_image_count -= 1;
+	swapchain_info.minImageCount = min_image_count;
+	// choose surface format and color space
+	for (const auto &surface_format : swapchain_support.surface_formats)
+	{
+		if (surface_format.format == VK_FORMAT_B8G8R8A8_SRGB && surface_format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+		{
+			swapchain_info.imageFormat = VK_FORMAT_B8G8R8A8_SRGB;
+			swapchain_info.imageColorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
+		}
+	}
+	if (swapchain_info.imageFormat == 0)
+	{
+		swapchain_info.imageFormat = swapchain_support.surface_formats[0].format;
+		swapchain_info.imageColorSpace = swapchain_support.surface_formats[0].colorSpace;
+	}
+	// choose image extent
+	if (capabilities.currentExtent.width == 0xFFFFFFFF || capabilities.currentExtent.height == 0xFFFFFFFF)
+	{
+		uint width, height;
+		platform_get_window_dimensions(&width, &height);
+		VkExtent2D actual_extent = {
+			static_cast<uint32_t>(width),
+			static_cast<uint32_t>(height),
+		};
+		actual_extent.width = std::clamp(actual_extent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
+		actual_extent.height = std::clamp(actual_extent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
+		swapchain_info.imageExtent = actual_extent;
+	}
+	else
+	{
+		swapchain_info.imageExtent = capabilities.currentExtent;
+	}
+	swapchain_info.imageArrayLayers = 1;
+	swapchain_info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+	// choose a sharing mode dependent on if the queue families are actually the same
+	if (queue_family_indices.graphics_family == queue_family_indices.present_family)
+	{
+		swapchain_info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		swapchain_info.queueFamilyIndexCount = 0;
+		swapchain_info.pQueueFamilyIndices = 0;
+	}
+	else // queue_family_indices.graphics_family != queue_family_indices.present_family
+	{
+		swapchain_info.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+		swapchain_info.queueFamilyIndexCount = 2;
+		uint32_t indices[] = { queue_family_indices.graphics_family.value(), queue_family_indices.present_family.value() };
+		swapchain_info.pQueueFamilyIndices = indices;
+	}
+	swapchain_info.preTransform = capabilities.currentTransform;
+	swapchain_info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+	// choose present mode
+	for (const auto &present_mode : swapchain_support.present_modes)
+	{
+		if (present_mode == VK_PRESENT_MODE_MAILBOX_KHR)
+		{
+			swapchain_info.presentMode = VK_PRESENT_MODE_MAILBOX_KHR;
+			break;
+		}
+	}
+	if (swapchain_info.presentMode == 0)
+	{
+		swapchain_info.presentMode = VK_PRESENT_MODE_FIFO_KHR;
+	}
+	// temporary; to check the maximum amount of fps you can run at
+	swapchain_info.presentMode = VK_PRESENT_MODE_IMMEDIATE_KHR;
+	swapchain_info.clipped = VK_TRUE;
+	swapchain_info.oldSwapchain = VK_NULL_HANDLE;
+
+	VkResult result = vkCreateSwapchainKHR(context.device, &swapchain_info, 0, &context.swapchain);
+	if (result != VK_SUCCESS)
+	{
+		// TODO: log failure
+		return GAME_FAILURE;
+	}
+
+	vkGetSwapchainImagesKHR(context.device, context.swapchain, &min_image_count, 0);
+	context.swapchain_images.resize(min_image_count);
+	vkGetSwapchainImagesKHR(context.device, context.swapchain, &min_image_count, context.swapchain_images.data());
+
+	context.swapchain_image_format = swapchain_info.imageFormat;
+	context.swapchain_image_extent = swapchain_info.imageExtent;
+
+	// TODO: log success
+	return GAME_SUCCESS;
+}
+
+bool32 create_image_views()
+{
+	context.swapchain_image_views.resize(context.swapchain_images.size());
+
+	for (uint i = 0; i < context.swapchain_image_views.size(); ++i)
+	{
+		VkImageViewCreateInfo image_view_info{};
+		image_view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		image_view_info.image = context.swapchain_images[i];
+		image_view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		image_view_info.format = context.swapchain_image_format;
+		image_view_info.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+		image_view_info.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+		image_view_info.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+		image_view_info.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+		image_view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		image_view_info.subresourceRange.baseMipLevel = 0;
+		image_view_info.subresourceRange.levelCount = 1;
+		image_view_info.subresourceRange.baseArrayLayer = 0;
+		image_view_info.subresourceRange.layerCount = 1;
+
+		VkResult result = vkCreateImageView(context.device, &image_view_info, 0, &context.swapchain_image_views[i]);
+		if (result != VK_SUCCESS)
+		{
+			// TODO: log failure
+			return GAME_FAILURE;
+		}
+
+	}
+
+	// TODO: log success
+	return GAME_SUCCESS;
+}
+
+bool32 create_framebuffers()
+{
+	context.swapchain_framebuffers.resize(context.swapchain_image_views.size());
+
+	for (size_t i = 0; i < context.swapchain_image_views.size(); ++i)
+	{
+		VkImageView attachments[] = {
+			context.swapchain_image_views[i],
+		};
+
+		VkFramebufferCreateInfo framebuffer_info{
+			.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+			.renderPass = context.render_pass,
+			.attachmentCount = 1,
+			.pAttachments = attachments,
+			.width = context.swapchain_image_extent.width,
+			.height = context.swapchain_image_extent.height,
+			.layers = 1,
+		};
+
+		VkResult result = vkCreateFramebuffer(context.device, &framebuffer_info, 0, &context.swapchain_framebuffers[i]);
+		if (result != VK_SUCCESS)
+		{
+			// TODO: log failure
+			return GAME_FAILURE;
+		}
+
+	}
+
+	// TODO: log success
+	return GAME_SUCCESS;
+}
+
+void recreate_swapchain()
+{
+	vkDeviceWaitIdle(context.device);
+
+	cleanup_swapchain();
+
+	create_swapchain();
+	create_image_views();
+	create_framebuffers();
+}
+
 bool32 draw_frame()
 {
 	// wait for the previous frame to finish
-	vkWaitForFences(context.device, 1, &context.in_flight_fence, VK_TRUE, UINT64_MAX);
-	vkResetFences(context.device, 1, &context.in_flight_fence);
+	vkWaitForFences(context.device, 1, &context.in_flight_fences[context.current_frame], VK_TRUE, UINT64_MAX);
+	vkResetFences(context.device, 1, &context.in_flight_fences[context.current_frame]);
 
 	// acquire an image from the swapchain
 	uint32 image_index;
-	vkAcquireNextImageKHR(context.device, context.swapchain, UINT64_MAX, context.image_available_semaphore, VK_NULL_HANDLE, &image_index);
+	VkResult result = vkAcquireNextImageKHR(context.device, context.swapchain, UINT64_MAX, context.image_available_semaphores[context.current_frame], VK_NULL_HANDLE, &image_index);
+	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
+	{
+		return 2;
+	}
+	else if (result != VK_SUCCESS)
+	{
+		// TODO: log failure
+		return GAME_FAILURE;
+	}
 
 	// record a command buffer that draws the frame onto that image
-	vkResetCommandBuffer(context.command_buffer, 0);
-	record_command_buffer(context.command_buffer, image_index);
+	vkResetCommandBuffer(context.command_buffers[context.current_frame], 0);
+	record_command_buffer(context.command_buffers[context.current_frame], image_index);
 
 	// submit the recorded command buffer
-	VkSemaphore wait_semaphores[] = { context.image_available_semaphore };
-	VkSemaphore signal_semaphores[] = { context.render_finished_semaphore };
+	VkSemaphore wait_semaphores[] = { context.image_available_semaphores[context.current_frame] };
+	VkSemaphore signal_semaphores[] = { context.render_finished_semaphores[context.current_frame] };
 	VkPipelineStageFlags wait_stages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
 	VkSubmitInfo submit_info{
 		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
@@ -171,11 +435,11 @@ bool32 draw_frame()
 		.pWaitSemaphores = wait_semaphores,
 		.pWaitDstStageMask = wait_stages,
 		.commandBufferCount = 1,
-		.pCommandBuffers = &context.command_buffer,
+		.pCommandBuffers = &context.command_buffers[context.current_frame],
 		.signalSemaphoreCount = 1,
 		.pSignalSemaphores = signal_semaphores
 	};
-	if (VK_SUCCESS != vkQueueSubmit(context.graphics_queue, 1, &submit_info, context.in_flight_fence))
+	if (VK_SUCCESS != vkQueueSubmit(context.graphics_queue, 1, &submit_info, context.in_flight_fences[context.current_frame]))
 	{
 		// TODO: log failure
 		return GAME_FAILURE;
@@ -192,7 +456,13 @@ bool32 draw_frame()
 		.pSwapchains = swapchains,
 		.pImageIndices = &image_index,
 	};
-	vkQueuePresentKHR(context.present_queue, &present_info);
+	result = vkQueuePresentKHR(context.present_queue, &present_info);
+	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
+	{
+		return 2;
+	}
+
+	context.current_frame = (context.current_frame + 1) % MAX_FRAMES_IN_FLIGHT;
 
 	return GAME_SUCCESS;
 }
@@ -221,11 +491,7 @@ bool32 game_vulkan_init()
 		VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
 	messenger_info.pfnUserCallback = vulkan_debug_callback;
 
-	QueueFamilyIndices queue_family_indices;
-
 	std::vector<const char *> device_extensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
-
-	SwapchainDetails swapchain_support;
 
 
 
@@ -375,39 +641,8 @@ bool32 game_vulkan_init()
 			vkGetPhysicalDeviceProperties(physical_device, &physical_device_properties);
 
 			// find queue families for a physical device
-			uint32 queue_family_count;
-			vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &queue_family_count, 0);
-
-			// TODO: vector?
-			std::vector<VkQueueFamilyProperties> queue_family_properties_array(queue_family_count);
-			vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &queue_family_count, queue_family_properties_array.data());
-
-			int i = 0;
-			bool queue_family_indices_is_complete = false;
-			for (const auto &queue_family_properties : queue_family_properties_array)
-			{
-				// NOTE: there might be a change in logic necessary if for some reason another queue family is better
-				if (queue_family_properties.queueFlags & VK_QUEUE_GRAPHICS_BIT)
-				{
-					queue_family_indices.graphics_family = i;
-				}
-
-				VkBool32 present_support = false;
-				vkGetPhysicalDeviceSurfaceSupportKHR(physical_device, i, context.surface, &present_support);
-				if (present_support)
-				{
-					queue_family_indices.present_family = i;
-				}
-
-				// check if all indices have a value, if they do break the loop early
-				if (queue_family_indices.graphics_family.has_value() && queue_family_indices.present_family.has_value())
-				{
-					queue_family_indices_is_complete = true;
-					break;
-				}
-
-				++i;
-			}
+			QueueFamilyIndices queue_family_indices = get_queue_family_indices(physical_device);
+			bool queue_family_indices_is_complete = queue_family_indices.graphics_family.has_value() && queue_family_indices.present_family.has_value();
 
 			// are my device extensions supported for this physical device?
 			uint32 property_count;
@@ -424,20 +659,7 @@ bool32 game_vulkan_init()
 			}
 
 			// does this device support the swapchain i want to create?
-			uint32_t format_count;
-			vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device, context.surface, &format_count, 0);
-			if (format_count > 0)
-			{
-				swapchain_support.surface_formats.resize(format_count);
-				vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device, context.surface, &format_count, swapchain_support.surface_formats.data());
-			}
-			uint32_t present_mode_count;
-			vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device, context.surface, &present_mode_count, 0);
-			if (present_mode_count > 0)
-			{
-				swapchain_support.present_modes.resize(present_mode_count);
-				vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device, context.surface, &present_mode_count, swapchain_support.present_modes.data());
-			}
+			SwapchainDetails swapchain_support = get_swapchain_support_details(physical_device);
 			bool swapchain_supported = !swapchain_support.surface_formats.empty() && !swapchain_support.present_modes.empty();
 			
 			// search for other devices if the current driver is not a dedicated gpu, doesnt support the required queue families, doesnt support the required device extensions
@@ -458,6 +680,10 @@ bool32 game_vulkan_init()
 
 		// TODO: Log the picked physical device
 	}
+
+
+
+	QueueFamilyIndices queue_family_indices = get_queue_family_indices(context.physical_device);
 
 
 
@@ -508,133 +734,14 @@ bool32 game_vulkan_init()
 
 	// create swap chain
 	{
-		VkSurfaceCapabilitiesKHR capabilities{};
-		vkGetPhysicalDeviceSurfaceCapabilitiesKHR(context.physical_device, context.surface, &capabilities);
-
-		VkSwapchainCreateInfoKHR swapchain_info{};
-		swapchain_info.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-		swapchain_info.surface = context.surface;
-		// choose image count
-		uint32 min_image_count = capabilities.minImageCount + 1; // this will most likely equal 3
-		if (min_image_count > capabilities.maxImageCount && capabilities.maxImageCount != 0)
-			min_image_count -= 1;
-		swapchain_info.minImageCount = min_image_count;
-		// choose surface format and color space
-		for (const auto &surface_format : swapchain_support.surface_formats)
-		{
-			if (surface_format.format == VK_FORMAT_B8G8R8A8_SRGB && surface_format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
-			{
-				swapchain_info.imageFormat = VK_FORMAT_B8G8R8A8_SRGB;
-				swapchain_info.imageColorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR;
-			}
-		}
-		if (swapchain_info.imageFormat == 0)
-		{
-			swapchain_info.imageFormat = swapchain_support.surface_formats[0].format;
-			swapchain_info.imageColorSpace = swapchain_support.surface_formats[0].colorSpace;
-		}
-		// choose image extent
-		if (capabilities.currentExtent.width == 0xFFFFFFFF || capabilities.currentExtent.height == 0xFFFFFFFF)
-		{
-			uint width, height;
-			platform_get_window_dimensions(&width, &height);
-			VkExtent2D actual_extent = {
-				static_cast<uint32_t>(width),
-				static_cast<uint32_t>(height),
-			};
-			actual_extent.width = std::clamp(actual_extent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
-			actual_extent.height = std::clamp(actual_extent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
-			swapchain_info.imageExtent = actual_extent;
-		}
-		else
-		{
-			swapchain_info.imageExtent = capabilities.currentExtent;
-		}
-		swapchain_info.imageArrayLayers = 1;
-		swapchain_info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-		// choose a sharing mode dependent on if the queue families are actually the same
-		if (queue_family_indices.graphics_family == queue_family_indices.present_family)
-		{
-			swapchain_info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-			swapchain_info.queueFamilyIndexCount = 0;
-			swapchain_info.pQueueFamilyIndices = 0;
-		}
-		else // queue_family_indices.graphics_family != queue_family_indices.present_family
-		{
-			swapchain_info.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-			swapchain_info.queueFamilyIndexCount = 2;
-			uint32_t indices[] = { queue_family_indices.graphics_family.value(), queue_family_indices.present_family.value() };
-			swapchain_info.pQueueFamilyIndices = indices;
-		}
-		swapchain_info.preTransform = capabilities.currentTransform;
-		swapchain_info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-		// choose present mode
-		for (const auto &present_mode : swapchain_support.present_modes)
-		{
-			if (present_mode == VK_PRESENT_MODE_MAILBOX_KHR)
-			{
-				swapchain_info.presentMode = VK_PRESENT_MODE_MAILBOX_KHR;
-				break;
-			}
-		}
-		if (swapchain_info.presentMode == 0)
-		{
-			swapchain_info.presentMode = VK_PRESENT_MODE_FIFO_KHR;
-		}
-		// temporary; to check the maximum amount of fps you can run at
-		swapchain_info.presentMode = VK_PRESENT_MODE_IMMEDIATE_KHR;
-		swapchain_info.clipped = VK_TRUE;
-		swapchain_info.oldSwapchain = VK_NULL_HANDLE;
-
-		VkResult result = vkCreateSwapchainKHR(context.device, &swapchain_info, 0, &context.swapchain);
-		if (result != VK_SUCCESS)
-		{
-			// TODO: log failure
-			return GAME_FAILURE;
-		}
-
-		vkGetSwapchainImagesKHR(context.device, context.swapchain, &min_image_count, 0);
-		context.swapchain_images.resize(min_image_count);
-		vkGetSwapchainImagesKHR(context.device, context.swapchain, &min_image_count, context.swapchain_images.data());
-
-		context.swapchain_image_format = swapchain_info.imageFormat;
-		context.swapchain_image_extent = swapchain_info.imageExtent;
-
-		// TODO: log success
+		bool32 result = create_swapchain();
 	}
 
 
 
 	// create image views
 	{
-		context.swapchain_image_views.resize(context.swapchain_images.size());
-
-		for (uint i = 0; i < context.swapchain_image_views.size(); ++i)
-		{
-			VkImageViewCreateInfo image_view_info{};
-			image_view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-			image_view_info.image = context.swapchain_images[i];
-			image_view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-			image_view_info.format = context.swapchain_image_format;
-			image_view_info.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-			image_view_info.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-			image_view_info.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-			image_view_info.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-			image_view_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			image_view_info.subresourceRange.baseMipLevel = 0;
-			image_view_info.subresourceRange.levelCount = 1;
-			image_view_info.subresourceRange.baseArrayLayer = 0;
-			image_view_info.subresourceRange.layerCount = 1;
-
-			VkResult result = vkCreateImageView(context.device, &image_view_info, 0, &context.swapchain_image_views[i]);
-			if (result != VK_SUCCESS)
-			{
-				// TODO: log failure
-				return GAME_FAILURE;
-			}
-
-			// TODO: log success
-		}
+		bool32 result = create_image_views();
 	}
 
 
@@ -852,33 +959,7 @@ bool32 game_vulkan_init()
 
 	// create framebuffers
 	{
-		context.swapchain_framebuffers.resize(context.swapchain_image_views.size());
-
-		for (size_t i = 0; i < context.swapchain_image_views.size(); ++i)
-		{
-			VkImageView attachments[] = {
-				context.swapchain_image_views[i],
-			};
-
-			VkFramebufferCreateInfo framebuffer_info{
-				.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-				.renderPass = context.render_pass,
-				.attachmentCount = 1,
-				.pAttachments = attachments,
-				.width = context.swapchain_image_extent.width,
-				.height = context.swapchain_image_extent.height,
-				.layers = 1,
-			};
-
-			VkResult result = vkCreateFramebuffer(context.device, &framebuffer_info, 0, &context.swapchain_framebuffers[i]);
-			if (result != VK_SUCCESS)
-			{
-				// TODO: log failure
-				return GAME_FAILURE;
-			}
-
-			// TODO: log success
-		}
+		bool32 result = create_framebuffers();
 	}
 
 
@@ -905,14 +986,16 @@ bool32 game_vulkan_init()
 
 	// create command buffer
 	{
+		context.command_buffers.resize(MAX_FRAMES_IN_FLIGHT);
+
 		VkCommandBufferAllocateInfo allocate_info{
 			.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
 			.commandPool = context.command_pool,
 			.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-			.commandBufferCount = 1,
+			.commandBufferCount = static_cast<uint32_t>(context.command_buffers.size()),
 		};
 
-		VkResult result = vkAllocateCommandBuffers(context.device, &allocate_info, &context.command_buffer);
+		VkResult result = vkAllocateCommandBuffers(context.device, &allocate_info, context.command_buffers.data());
 		if (result != VK_SUCCESS)
 		{
 			// TODO: log failure
@@ -926,6 +1009,10 @@ bool32 game_vulkan_init()
 
 	// create synchronization objects
 	{
+		context.image_available_semaphores.resize(MAX_FRAMES_IN_FLIGHT);
+		context.render_finished_semaphores.resize(MAX_FRAMES_IN_FLIGHT);
+		context.in_flight_fences.resize(MAX_FRAMES_IN_FLIGHT);
+
 		VkSemaphoreCreateInfo semaphore_info{
 			.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
 		};
@@ -935,12 +1022,15 @@ bool32 game_vulkan_init()
 			.flags = VK_FENCE_CREATE_SIGNALED_BIT,
 		};
 
-		if (VK_SUCCESS != vkCreateSemaphore(context.device, &semaphore_info, 0, &context.image_available_semaphore) ||
-			VK_SUCCESS != vkCreateSemaphore(context.device, &semaphore_info, 0, &context.render_finished_semaphore) ||
-			VK_SUCCESS != vkCreateFence(context.device, &fence_info, 0, &context.in_flight_fence))
+		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
 		{
-			// TODO: log failure
-			return GAME_FAILURE;
+			if (VK_SUCCESS != vkCreateSemaphore(context.device, &semaphore_info, 0, &context.image_available_semaphores[i]) ||
+				VK_SUCCESS != vkCreateSemaphore(context.device, &semaphore_info, 0, &context.render_finished_semaphores[i]) ||
+				VK_SUCCESS != vkCreateFence(context.device, &fence_info, 0, &context.in_flight_fences[i]))
+			{
+				// TODO: log failure
+				return GAME_FAILURE;
+			}
 		}
 
 		// TODO: log success
@@ -952,6 +1042,7 @@ bool32 game_vulkan_init()
 void game_vulkan_cleanup()
 {
 	// TODO
+	cleanup_swapchain();
 }
 
 void game_wait_idle()

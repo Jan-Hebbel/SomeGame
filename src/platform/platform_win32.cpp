@@ -304,6 +304,11 @@ main_window_callback(HWND w_handle, UINT message, WPARAM wparam, LPARAM lparam)
 
 	switch (message)
 	{
+		case WM_SIZE:
+		{
+			window_dimensions = { LOWORD(lparam), HIWORD(lparam) };
+		} break;
+
 		case WM_CLOSE:
 		{
 			// TODO: handle this as a message to the user?
@@ -508,8 +513,11 @@ int CALLBACK WinMain(_In_ HINSTANCE h_instance, _In_opt_ HINSTANCE h_prev_instan
 		
 		// update game and render
 		game_update();
-		game_render();
-
+		if (window_dimensions.width != 0 && window_dimensions.height != 0)
+		{
+			game_render();
+		}
+		
 		// function: calculate performance metrics
 		uint64 end_cycle_count = __rdtsc();
 		LARGE_INTEGER end_counter;

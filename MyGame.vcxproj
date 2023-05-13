@@ -113,6 +113,7 @@
   <ItemGroup>
     <ClInclude Include="src\game\game.hpp" />
     <ClInclude Include="src\game\game_vulkan.hpp" />
+    <ClInclude Include="src\game\game_vulkan_internal.hpp" />
     <ClInclude Include="src\pch.hpp" />
     <ClInclude Include="src\platform\platform.hpp" />
     <ClInclude Include="src\platform\platform_logger.hpp" />
