@@ -400,20 +400,6 @@ main_window_callback(HWND w_handle, UINT message, WPARAM wparam, LPARAM lparam)
 			}
 		} break;
 
-
-		case WM_PAINT:
-		{
-			// TODO: delete this once vulkan renderer set up
-			PAINTSTRUCT paint{};
-			HDC device_context = BeginPaint(w_handle, &paint);
-			int x = paint.rcPaint.left;
-			int y = paint.rcPaint.top;
-			int width = paint.rcPaint.right - paint.rcPaint.left;
-			int height = paint.rcPaint.bottom - paint.rcPaint.top;
-			PatBlt(device_context, x, y, width, height, WHITENESS);
-			EndPaint(w_handle, &paint);
-		} break;
-
 		default:
 		{
 			result = DefWindowProc(w_handle, message, wparam, lparam);
@@ -481,7 +467,7 @@ internal_function void platform_process_events()
 
 int CALLBACK WinMain(_In_ HINSTANCE h_instance, _In_opt_ HINSTANCE h_prev_instance, _In_ PSTR cmd_line, _In_ int cmdshow)
 {
-	platform_logging_init();
+	//platform_logging_init();
 
 	LARGE_INTEGER perf_count_frequency_result;
 	QueryPerformanceFrequency(&perf_count_frequency_result);
@@ -545,7 +531,7 @@ int CALLBACK WinMain(_In_ HINSTANCE h_instance, _In_opt_ HINSTANCE h_prev_instan
 	platform_destroy_sound_device();
 	//platform_destroy_window(); ????
 
-	platform_logging_free();
+	//platform_logging_free();
 	
 	return 0;
 }

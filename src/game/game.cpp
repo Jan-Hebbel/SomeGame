@@ -15,6 +15,7 @@ void game_render()
 	bool32 result = draw_frame();
 	if (result == 2)
 	{
+		// 2 means that swapchain is either out of date or suboptimal
 		recreate_swapchain();
 		return;
 	}
