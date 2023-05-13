@@ -25,6 +25,9 @@
 
 #include "game/game.hpp"
 
+#define STB_TRUETYPE_IMPLEMENTATION
+#include "lib/stb_truetype.h"
+
 #include <windows.h>
 #include <xaudio2.h>
 
@@ -297,6 +300,11 @@ void platform_error_message_window(const char *title, const char *message)
 	MessageBoxA(window_handles.hwnd, message, title, MB_OK | MB_ICONERROR);
 }
 
+void platform_load_font(const char *path)
+{
+	// TODO
+}
+
 LRESULT CALLBACK
 main_window_callback(HWND w_handle, UINT message, WPARAM wparam, LPARAM lparam)
 {
@@ -479,6 +487,8 @@ int CALLBACK WinMain(_In_ HINSTANCE h_instance, _In_opt_ HINSTANCE h_prev_instan
 	platform_create_sound_device();
 	// TODO: remove this
 	platform_audio_play_file("res/audio/test.wav");
+
+	platform_load_font("res/fonts/SourceCodePro-Regular.ttf");
 
 	bool32 result_vulkan_init = game_vulkan_init();
 	if (result_vulkan_init == GAME_FAILURE)
