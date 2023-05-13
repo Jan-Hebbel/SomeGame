@@ -18,4 +18,9 @@ void game_render()
 		recreate_swapchain();
 		return;
 	}
+	else if (result == GAME_FAILURE)
+	{
+		// TODO: log failure
+		return;
+	}
 }

@@ -461,6 +461,10 @@ bool32 draw_frame()
 	{
 		return 2;
 	}
+	else if (result != VK_SUCCESS)
+	{
+		return GAME_FAILURE;
+	}
 
 	context.current_frame = (context.current_frame + 1) % MAX_FRAMES_IN_FLIGHT;
 
