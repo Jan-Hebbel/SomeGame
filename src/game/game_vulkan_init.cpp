@@ -1,6 +1,14 @@
-#include "pch.hpp"
+
+/*
+	TODO:
+	* render while window is begin resized?
+*/
+
+#define _CRT_SECURE_NO_WARNINGS
 
 #include "game/game.hpp"
+
+#include "types.hpp"
 #include "game/game_vulkan.hpp"
 #include "game/game_vulkan_internal.hpp"
 #include "platform/platform.hpp"
@@ -12,6 +20,8 @@
 #endif
 
 #include <vulkan/vulkan.h>
+#define STB_TRUETYPE_IMPLEMENTATION
+#include <lib/stb_truetype.h>
 
 #include <vector>
 #include <string>
@@ -20,6 +30,7 @@
 #include <set>
 #include <algorithm>
 #include <fstream>
+#include <stdio.h>
 
 #ifdef _DEBUG
 constexpr bool enable_validation_layers = true;
@@ -55,9 +66,13 @@ struct GameVulkanContext
 	uint32 current_frame = 0;
 };
 
-constexpr uint MAX_FRAMES_IN_FLIGHT = 2;
-
+global_variable constexpr uint MAX_FRAMES_IN_FLIGHT = 2;
 global_variable GameVulkanContext context{};
+
+// TODO: temporary solution
+global_variable unsigned char ttf_buffer[1 << 20];
+global_variable unsigned char font_bitmap[1024 * 1024];
+global_variable stbtt_bakedchar data[96];
 
 struct QueueFamilyIndices
 {
@@ -96,6 +111,13 @@ internal_function std::vector<char> read_file(const std::string &filename)
 	file.close();
 
 	return buffer;
+}
+
+void game_load_font_to_bitmap(const char *file)
+{
+	// NOTE: stbtt_BakeFontBitmap expects unsigned char, possible error?
+	size_t chars_read = fread(ttf_buffer, 1, 1 << 20, fopen("res/fonts/SourceCodePro-Regular.ttf", "rb"));
+	stbtt_BakeFontBitmap(ttf_buffer, 0, 16.0f, font_bitmap, 1024, 1024, 32, 96, data);
 }
 
 internal_function bool32 record_command_buffer(VkCommandBuffer command_buffer, uint32 image_index)
@@ -402,7 +424,7 @@ void recreate_swapchain()
 	create_framebuffers();
 }
 
-bool32 draw_frame()
+bool32 draw_frame(real64 ms_per_frame, real64 fps, real64 mcpf)
 {
 	// wait for the previous frame to finish
 	vkWaitForFences(context.device, 1, &context.in_flight_fences[context.current_frame], VK_TRUE, UINT64_MAX);
@@ -465,6 +487,12 @@ bool32 draw_frame()
 	{
 		return GAME_FAILURE;
 	}
+
+	// draw performance metrics
+	stbtt_aligned_quad aligned_quad;
+	float x = 5, y = 5;
+	stbtt_GetBakedQuad(data, 1024, 1024, 'F' - 32, &x, &y, &aligned_quad, true);
+	// TODO: now give vulkan this quad and render it
 
 	context.current_frame = (context.current_frame + 1) % MAX_FRAMES_IN_FLIGHT;
 

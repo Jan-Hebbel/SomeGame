@@ -1,8 +1,7 @@
-#include "pch.hpp"
-
 #include "platform/platform_logger.hpp"
 
 #include "platform/platform.hpp"
+#include "types.hpp"
 
 #include <windows.h>
 
@@ -25,6 +24,7 @@ void platform_log(const char *message, ...)
 	vsnprintf(out_message, static_cast<size_t>(size), message, arg_ptr);
 	va_end(arg_ptr);
 
+	if (output_handle == 0) return;
 	WriteConsole(output_handle, out_message, size - 1, 0, 0);
 }
 

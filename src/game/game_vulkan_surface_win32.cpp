@@ -1,4 +1,4 @@
-#include "pch.hpp"
+#include "types.hpp"
 
 #include "game/game_vulkan.hpp"
 #include "platform/platform.hpp"

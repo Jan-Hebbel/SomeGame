@@ -1,6 +1,8 @@
 #ifndef PLATFORM_HPP
 #define PLATFORM_HPP
 
+#include "types.hpp"
+
 /*
 	NOTE: Functions that the platform layer provides
 */
@@ -17,6 +19,7 @@ void platform_audio_play_file(const char *file_path);
 // log to console
 void platform_log(const char *message, ...);
 
+// display small error window with a message to the user
 void platform_error_message_window(const char *title, const char *message);
 
 #endif

@@ -18,15 +18,11 @@
 	- ...
 */
 
-#include "pch.hpp"
-
 #include "platform/platform.hpp"
+
+#include "types.hpp"
 #include "platform/platform_logger.hpp"
-
 #include "game/game.hpp"
-
-#define STB_TRUETYPE_IMPLEMENTATION
-#include "lib/stb_truetype.h"
 
 #include <windows.h>
 #include <xaudio2.h>
@@ -300,11 +296,6 @@ void platform_error_message_window(const char *title, const char *message)
 	MessageBoxA(window_handles.hwnd, message, title, MB_OK | MB_ICONERROR);
 }
 
-void platform_load_font(const char *path)
-{
-	// TODO
-}
-
 LRESULT CALLBACK
 main_window_callback(HWND w_handle, UINT message, WPARAM wparam, LPARAM lparam)
 {
@@ -488,7 +479,7 @@ int CALLBACK WinMain(_In_ HINSTANCE h_instance, _In_opt_ HINSTANCE h_prev_instan
 	// TODO: remove this
 	platform_audio_play_file("res/audio/test.wav");
 
-	platform_load_font("res/fonts/SourceCodePro-Regular.ttf");
+	game_load_font_to_bitmap("res/fonts/SourceCodePro-Regular.ttf");
 
 	bool32 result_vulkan_init = game_vulkan_init();
 	if (result_vulkan_init == GAME_FAILURE)
@@ -507,11 +498,15 @@ int CALLBACK WinMain(_In_ HINSTANCE h_instance, _In_opt_ HINSTANCE h_prev_instan
 		// handle input and other events
 		platform_process_events();
 		
+		static real64 ms_per_frame;
+		static real64 fps;
+		static real64 mcpf;
+
 		// update game and render
 		game_update();
 		if (window_dimensions.width != 0 && window_dimensions.height != 0)
 		{
-			game_render();
+			game_render(ms_per_frame, fps, mcpf);
 		}
 		
 		// function: calculate performance metrics
@@ -521,10 +516,10 @@ int CALLBACK WinMain(_In_ HINSTANCE h_instance, _In_opt_ HINSTANCE h_prev_instan
 
 		uint64 cycles_elapsed = end_cycle_count - last_cycle_count;
 		int64 counter_elapsed = end_counter.QuadPart - last_counter.QuadPart;
-		real64 ms_per_frame = (1000.0f * (real64)counter_elapsed) / (real64)perf_count_frequency;
-		real64 fps = (real64)perf_count_frequency / (real64)counter_elapsed;
+		ms_per_frame = (1000.0f * (real64)counter_elapsed) / (real64)perf_count_frequency;
+		fps = (real64)perf_count_frequency / (real64)counter_elapsed;
 		// mcpf == mega cycles per frame
-		real64 mcpf = (real64)cycles_elapsed / (1000.0f * 1000.0f);
+		mcpf = (real64)cycles_elapsed / (1000.0f * 1000.0f);
 
 		// TODO: display metrics to screen
 
