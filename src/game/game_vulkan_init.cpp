@@ -9,6 +9,7 @@
 #include "game/game.hpp"
 
 #include "types.hpp"
+#include "math/math.hpp"
 #include "game/game_vulkan.hpp"
 #include "game/game_vulkan_internal.hpp"
 #include "platform/platform.hpp"
@@ -64,6 +65,8 @@ struct GameVulkanContext
 	std::vector<VkSemaphore> render_finished_semaphores;
 	std::vector<VkFence> in_flight_fences;
 	uint32 current_frame = 0;
+	VkBuffer vertex_buffer;
+	VkDeviceMemory vertex_buffer_memory;
 };
 
 global_variable constexpr uint MAX_FRAMES_IN_FLIGHT = 2;
@@ -85,6 +88,18 @@ struct SwapchainDetails
 {
 	std::vector<VkSurfaceFormatKHR> surface_formats;
 	std::vector<VkPresentModeKHR> present_modes;
+};
+
+struct Vertex
+{
+	Vec2 pos;
+	Vec3 color;
+};
+
+global_variable const Vertex vertices[] = {
+	{.pos = {0.0f, -0.5f}, .color = {1.0f, 1.0f, 1.0f}},
+	{.pos = {0.5f, 0.5f}, .color = {0.0f, 1.0f, 0.0f}},
+	{.pos = {-0.5f, 0.5f}, .color = {0.0f, 0.0f, 1.0f}},
 };
 
 VKAPI_ATTR VkBool32 VKAPI_CALL vulkan_debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT type, const VkDebugUtilsMessengerCallbackDataEXT *p_callback_data, void *p_user_data)
@@ -146,6 +161,10 @@ internal_function bool32 record_command_buffer(VkCommandBuffer command_buffer, u
 
 	vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context.graphics_pipeline);
 
+	VkBuffer vertex_buffers[] = { context.vertex_buffer };
+	VkDeviceSize offsets[] = { 0 };
+	vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers, offsets);
+
 	VkViewport viewport{ 
 		.x = 0.0f, .y = 0.0f, 
 		.width = static_cast<float>(context.swapchain_image_extent.width), 
@@ -160,7 +179,7 @@ internal_function bool32 record_command_buffer(VkCommandBuffer command_buffer, u
 	};
 	vkCmdSetScissor(command_buffer, 0, 1, &scissor);
 
-	vkCmdDraw(command_buffer, 3, 1, 0, 0);
+	vkCmdDraw(command_buffer, sizeof(vertices) / sizeof(vertices[0]), 1, 0, 0);
 
 	vkCmdEndRenderPass(command_buffer);
 
@@ -497,6 +516,23 @@ bool32 draw_frame(real64 ms_per_frame, real64 fps, real64 mcpf)
 	context.current_frame = (context.current_frame + 1) % MAX_FRAMES_IN_FLIGHT;
 
 	return GAME_SUCCESS;
+}
+
+bool32 find_memory_type(uint32 type_filter, VkMemoryPropertyFlags property_flags, uint32 *index)
+{
+	VkPhysicalDeviceMemoryProperties memory_properties{};
+	vkGetPhysicalDeviceMemoryProperties(context.physical_device, &memory_properties);
+
+	for (uint32 i = 0; i < memory_properties.memoryTypeCount; ++i)
+	{
+		if ((type_filter & (1 << i)) && (memory_properties.memoryTypes[i].propertyFlags & property_flags) == property_flags)
+		{
+			*index = i;
+			return GAME_SUCCESS;
+		}
+	}
+
+	return GAME_FAILURE;
 }
 
 bool32 game_vulkan_init()
@@ -876,10 +912,26 @@ bool32 game_vulkan_init()
 		dynamic_state_info.dynamicStateCount = sizeof(shader_stage_create_infos) / sizeof(shader_stage_create_infos[0]);
 		dynamic_state_info.pDynamicStates = dynamic_states;
 
+		VkVertexInputBindingDescription binding_description{
+			.binding = 0,
+			.stride = sizeof(Vertex),
+			.inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
+		};
+		VkVertexInputAttributeDescription attribute_descriptions[2]{};
+		attribute_descriptions[0].binding = 0;
+		attribute_descriptions[0].location = 0;
+		attribute_descriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+		attribute_descriptions[0].offset = offsetof(Vertex, pos);
+		attribute_descriptions[1].binding = 0;
+		attribute_descriptions[1].location = 1;
+		attribute_descriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+		attribute_descriptions[1].offset = offsetof(Vertex, color);
 		VkPipelineVertexInputStateCreateInfo vertex_input_info{};
 		vertex_input_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-		vertex_input_info.vertexBindingDescriptionCount = 0;
-		vertex_input_info.vertexAttributeDescriptionCount = 0;
+		vertex_input_info.vertexBindingDescriptionCount = 1;
+		vertex_input_info.vertexAttributeDescriptionCount = 2;
+		vertex_input_info.pVertexBindingDescriptions = &binding_description;
+		vertex_input_info.pVertexAttributeDescriptions = attribute_descriptions;
 
 		VkPipelineInputAssemblyStateCreateInfo input_assembly_info{};
 		input_assembly_info.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -1016,7 +1068,55 @@ bool32 game_vulkan_init()
 
 
 
-	// create command buffer
+	// create vertex buffer
+	{
+		VkBufferCreateInfo buffer_info{
+			.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+			.size = sizeof(vertices),
+			.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+			.sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+		};
+
+		VkResult result = vkCreateBuffer(context.device, &buffer_info, 0, &context.vertex_buffer);
+		if (result != VK_SUCCESS)
+		{
+			// TODO: log failure
+			return GAME_FAILURE;
+		}
+
+		VkMemoryRequirements memory_requirements{};
+		vkGetBufferMemoryRequirements(context.device, context.vertex_buffer, &memory_requirements);
+		uint32 memory_type_index;
+		bool32 res = find_memory_type(memory_requirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &memory_type_index);
+		if (res != GAME_SUCCESS)
+		{
+			// TODO: log failure
+			return GAME_FAILURE;
+		}
+		VkMemoryAllocateInfo alloc_info{
+			.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+			.allocationSize = memory_requirements.size,
+			.memoryTypeIndex = memory_type_index,
+		};
+
+		result = vkAllocateMemory(context.device, &alloc_info, 0, &context.vertex_buffer_memory);
+		if (result != VK_SUCCESS)
+		{
+			// TODO: log failure
+			return GAME_FAILURE;
+		}
+
+		vkBindBufferMemory(context.device, context.vertex_buffer, context.vertex_buffer_memory, 0);
+
+		void *data;
+		vkMapMemory(context.device, context.vertex_buffer_memory, 0, buffer_info.size, 0, &data);
+		memcpy(data, vertices, buffer_info.size);
+		vkUnmapMemory(context.device, context.vertex_buffer_memory);
+	}
+
+
+
+	// create command buffers
 	{
 		context.command_buffers.resize(MAX_FRAMES_IN_FLIGHT);
 
