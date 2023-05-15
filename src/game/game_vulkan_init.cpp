@@ -575,6 +575,7 @@ bool32 create_buffer(VkDeviceSize size, VkBufferUsageFlags usage_flags, VkMemory
 	};
 
 	// NOTE: don't call vkAllocateMemory for every individual buffer, the number of allocations is limited; instead when allocating memory for a large number of objects, create a custom allocator that splits up a single allocation among many different objects by using the offset parameters
+	// NOTE: maybe go a step further (as driver developers recommend): also store multiple buffers like the vertex buffer and index buffer into a single VkBuffer and use offsets in commands like vkCmdBindVertexBuffers => more cache friendly @Performance
 	result = vkAllocateMemory(context.device, &alloc_info, 0, &memory);
 	if (result != VK_SUCCESS)
 	{
