@@ -578,6 +578,44 @@ bool32 create_buffer(VkDeviceSize size, VkBufferUsageFlags usage_flags, VkMemory
 	return GAME_SUCCESS;
 }
 
+void copy_buffer(VkBuffer src_buffer, VkBuffer dst_buffer, VkDeviceSize size)
+{
+	VkCommandBufferAllocateInfo alloc_info{
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+		.commandPool = context.command_pool,
+		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+		.commandBufferCount = 1,
+	};
+
+	VkCommandBuffer command_buffer;
+	vkAllocateCommandBuffers(context.device, &alloc_info, &command_buffer);
+
+	VkCommandBufferBeginInfo begin_info{
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+		.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+	};
+	vkBeginCommandBuffer(command_buffer, &begin_info);
+
+	VkBufferCopy copy_region{
+		.srcOffset = 0,
+		.dstOffset = 0,
+		.size = size,
+	};
+	vkCmdCopyBuffer(command_buffer, src_buffer, dst_buffer, 1, &copy_region);
+
+	vkEndCommandBuffer(command_buffer);
+
+	VkSubmitInfo submit_info{
+		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+		.commandBufferCount = 1,
+		.pCommandBuffers = &command_buffer,
+	};
+	vkQueueSubmit(context.graphics_queue, 1, &submit_info, VK_NULL_HANDLE);
+	vkQueueWaitIdle(context.graphics_queue); // @Speed @Performance; use vkWaitForFences
+
+	vkFreeCommandBuffers(context.device, context.command_pool, 1, &command_buffer);
+}
+
 bool32 game_vulkan_init()
 {
 	// vulkan extensions
@@ -1115,7 +1153,9 @@ bool32 game_vulkan_init()
 	{
 		size_t buffer_size = sizeof(vertices);
 
-		bool32 result = create_buffer(static_cast<uint32_t>(buffer_size), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, context.vertex_buffer, context.vertex_buffer_memory);
+		VkBuffer staging_buffer;
+		VkDeviceMemory staging_buffer_memory;
+		bool32 result = create_buffer(static_cast<uint32_t>(buffer_size), VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, staging_buffer, staging_buffer_memory);
 		if (result != GAME_SUCCESS)
 		{
 			// TODO: log failure
@@ -1125,9 +1165,16 @@ bool32 game_vulkan_init()
 		// TODO: log success
 
 		void *data;
-		vkMapMemory(context.device, context.vertex_buffer_memory, 0, static_cast<uint32_t>(buffer_size), 0, &data);
+		vkMapMemory(context.device, staging_buffer_memory, 0, static_cast<uint32_t>(buffer_size), 0, &data);
 		memcpy(data, vertices, buffer_size);
-		vkUnmapMemory(context.device, context.vertex_buffer_memory);
+		vkUnmapMemory(context.device, staging_buffer_memory);
+
+		result = create_buffer(static_cast<uint32_t>(buffer_size), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, context.vertex_buffer, context.vertex_buffer_memory);
+
+		copy_buffer(staging_buffer, context.vertex_buffer, buffer_size);
+
+		vkDestroyBuffer(context.device, staging_buffer, 0);
+		vkFreeMemory(context.device, staging_buffer_memory, 0);
 	}
 
 
