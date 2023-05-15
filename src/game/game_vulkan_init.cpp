@@ -67,6 +67,8 @@ struct GameVulkanContext
 	uint32 current_frame = 0;
 	VkBuffer vertex_buffer;
 	VkDeviceMemory vertex_buffer_memory;
+	VkBuffer index_buffer;
+	VkDeviceMemory index_buffer_memory;
 };
 
 global_variable constexpr uint MAX_FRAMES_IN_FLIGHT = 2;
@@ -97,9 +99,14 @@ struct Vertex
 };
 
 global_variable const Vertex vertices[] = {
-	{.pos = {0.0f, -0.5f}, .color = {1.0f, 1.0f, 1.0f}},
-	{.pos = {0.5f, 0.5f}, .color = {0.0f, 1.0f, 0.0f}},
-	{.pos = {-0.5f, 0.5f}, .color = {0.0f, 0.0f, 1.0f}},
+	{.pos = {-0.5f, -0.5f}, .color = {1.0f, 0.0f, 0.0f}},
+	{.pos = {0.5f, -0.5f}, .color = {0.0f, 1.0f, 0.0f}},
+	{.pos = {0.5f, 0.5f}, .color = {0.0f, 0.0f, 1.0f}},
+	{.pos = {-0.5f, 0.5f}, .color = {1.0f, 1.0f, 1.0f}},
+};
+
+global_variable const uint16 indices[] = {
+	0, 1, 2, 2, 3, 0
 };
 
 VKAPI_ATTR VkBool32 VKAPI_CALL vulkan_debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT type, const VkDebugUtilsMessengerCallbackDataEXT *p_callback_data, void *p_user_data)
@@ -164,6 +171,7 @@ internal_function bool32 record_command_buffer(VkCommandBuffer command_buffer, u
 	VkBuffer vertex_buffers[] = { context.vertex_buffer };
 	VkDeviceSize offsets[] = { 0 };
 	vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers, offsets);
+	vkCmdBindIndexBuffer(command_buffer, context.index_buffer, 0, VK_INDEX_TYPE_UINT16);
 
 	VkViewport viewport{ 
 		.x = 0.0f, .y = 0.0f, 
@@ -179,7 +187,7 @@ internal_function bool32 record_command_buffer(VkCommandBuffer command_buffer, u
 	};
 	vkCmdSetScissor(command_buffer, 0, 1, &scissor);
 
-	vkCmdDraw(command_buffer, sizeof(vertices) / sizeof(vertices[0]), 1, 0, 0);
+	vkCmdDrawIndexed(command_buffer, sizeof(indices) / sizeof(indices[0]), 1, 0, 0, 0);
 
 	vkCmdEndRenderPass(command_buffer);
 
@@ -1171,8 +1179,48 @@ bool32 game_vulkan_init()
 		vkUnmapMemory(context.device, staging_buffer_memory);
 
 		result = create_buffer(static_cast<uint32_t>(buffer_size), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, context.vertex_buffer, context.vertex_buffer_memory);
+		if (result != GAME_SUCCESS)
+		{
+			// TODO: log failure
+			return GAME_FAILURE;
+		}
 
 		copy_buffer(staging_buffer, context.vertex_buffer, buffer_size);
+
+		vkDestroyBuffer(context.device, staging_buffer, 0);
+		vkFreeMemory(context.device, staging_buffer_memory, 0);
+	}
+
+
+
+	// create index buffer
+	{
+		size_t buffer_size = sizeof(indices);
+
+		VkBuffer staging_buffer;
+		VkDeviceMemory staging_buffer_memory;
+		bool32 result = create_buffer(static_cast<uint32_t>(buffer_size), VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, staging_buffer, staging_buffer_memory);
+		if (result != GAME_SUCCESS)
+		{
+			// TODO: log failure
+			return GAME_FAILURE;
+		}
+
+		// TODO: log success
+
+		void *data;
+		vkMapMemory(context.device, staging_buffer_memory, 0, static_cast<uint32_t>(buffer_size), 0, &data);
+		memcpy(data, indices, buffer_size);
+		vkUnmapMemory(context.device, staging_buffer_memory);
+
+		result = create_buffer(static_cast<uint32_t>(buffer_size), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, context.index_buffer, context.index_buffer_memory);
+		if (result != GAME_SUCCESS)
+		{
+			// TODO: log failure
+			return GAME_FAILURE;
+		}
+
+		copy_buffer(staging_buffer, context.index_buffer, buffer_size);
 
 		vkDestroyBuffer(context.device, staging_buffer, 0);
 		vkFreeMemory(context.device, staging_buffer_memory, 0);
