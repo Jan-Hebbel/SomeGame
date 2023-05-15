@@ -535,6 +535,49 @@ bool32 find_memory_type(uint32 type_filter, VkMemoryPropertyFlags property_flags
 	return GAME_FAILURE;
 }
 
+bool32 create_buffer(VkDeviceSize size, VkBufferUsageFlags usage_flags, VkMemoryPropertyFlags property_flags, VkBuffer &buffer, VkDeviceMemory &memory)
+{
+	VkBufferCreateInfo buffer_info{
+		.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+		.size = size,
+		.usage = usage_flags,
+		.sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+	};
+
+	VkResult result = vkCreateBuffer(context.device, &buffer_info, 0, &buffer);
+	if (result != VK_SUCCESS)
+	{
+		// TODO: log failure
+		return GAME_FAILURE;
+	}
+
+	VkMemoryRequirements memory_requirements{};
+	vkGetBufferMemoryRequirements(context.device, buffer, &memory_requirements);
+	uint32 memory_type_index;
+	bool32 res = find_memory_type(memory_requirements.memoryTypeBits, property_flags, &memory_type_index);
+	if (res != GAME_SUCCESS)
+	{
+		// TODO: log failure
+		return GAME_FAILURE;
+	}
+	VkMemoryAllocateInfo alloc_info{
+		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+		.allocationSize = memory_requirements.size,
+		.memoryTypeIndex = memory_type_index,
+	};
+
+	result = vkAllocateMemory(context.device, &alloc_info, 0, &memory);
+	if (result != VK_SUCCESS)
+	{
+		// TODO: log failure
+		return GAME_FAILURE;
+	}
+
+	vkBindBufferMemory(context.device, buffer, memory, 0);
+
+	return GAME_SUCCESS;
+}
+
 bool32 game_vulkan_init()
 {
 	// vulkan extensions
@@ -1070,47 +1113,20 @@ bool32 game_vulkan_init()
 
 	// create vertex buffer
 	{
-		VkBufferCreateInfo buffer_info{
-			.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-			.size = sizeof(vertices),
-			.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-			.sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-		};
+		size_t buffer_size = sizeof(vertices);
 
-		VkResult result = vkCreateBuffer(context.device, &buffer_info, 0, &context.vertex_buffer);
-		if (result != VK_SUCCESS)
+		bool32 result = create_buffer(static_cast<uint32_t>(buffer_size), VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, context.vertex_buffer, context.vertex_buffer_memory);
+		if (result != GAME_SUCCESS)
 		{
 			// TODO: log failure
 			return GAME_FAILURE;
 		}
 
-		VkMemoryRequirements memory_requirements{};
-		vkGetBufferMemoryRequirements(context.device, context.vertex_buffer, &memory_requirements);
-		uint32 memory_type_index;
-		bool32 res = find_memory_type(memory_requirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, &memory_type_index);
-		if (res != GAME_SUCCESS)
-		{
-			// TODO: log failure
-			return GAME_FAILURE;
-		}
-		VkMemoryAllocateInfo alloc_info{
-			.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-			.allocationSize = memory_requirements.size,
-			.memoryTypeIndex = memory_type_index,
-		};
-
-		result = vkAllocateMemory(context.device, &alloc_info, 0, &context.vertex_buffer_memory);
-		if (result != VK_SUCCESS)
-		{
-			// TODO: log failure
-			return GAME_FAILURE;
-		}
-
-		vkBindBufferMemory(context.device, context.vertex_buffer, context.vertex_buffer_memory, 0);
+		// TODO: log success
 
 		void *data;
-		vkMapMemory(context.device, context.vertex_buffer_memory, 0, buffer_info.size, 0, &data);
-		memcpy(data, vertices, buffer_info.size);
+		vkMapMemory(context.device, context.vertex_buffer_memory, 0, static_cast<uint32_t>(buffer_size), 0, &data);
+		memcpy(data, vertices, buffer_size);
 		vkUnmapMemory(context.device, context.vertex_buffer_memory);
 	}
 
