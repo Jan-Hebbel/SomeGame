@@ -82,4 +82,25 @@ inline Vec3 operator*(float s, Vec3 v)
 	return result;
 }
 
+struct Mat4
+{
+	float e[4][4];
+};
+
+Mat4 operator*(Mat4 a, Mat4 b)
+{
+	Mat4 r = {};
+	for (int i = 0; i < 4; ++i) // rows of a
+	{
+		for (int j = 0; j < 4; ++j) // columns of b
+		{
+			for (int k = 0; k < 4; ++k) // going through the row of a and column of b
+			{
+				r.e[i][j] += a.e[i][k] * b.e[k][j];
+			}
+		}
+	}
+	return r;
+}
+
 #endif

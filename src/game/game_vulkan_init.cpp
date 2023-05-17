@@ -98,6 +98,13 @@ struct Vertex
 	Vec3 color;
 };
 
+struct Uniform_Buffer_Object
+{
+	Mat4 model;
+	Mat4 view;
+	Mat4 proj;
+};
+
 global_variable const Vertex vertices[] = {
 	{.pos = {-0.5f, -0.5f}, .color = {1.0f, 0.0f, 0.0f}},
 	{.pos = {0.5f, -0.5f}, .color = {0.0f, 1.0f, 0.0f}},
