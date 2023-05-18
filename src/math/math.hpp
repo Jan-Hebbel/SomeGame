@@ -103,4 +103,48 @@ Mat4 operator*(Mat4 a, Mat4 b)
 	return r;
 }
 
+Mat4 identity()
+{
+	Mat4 r = {};
+	for (uint i = 0; i < 4; ++i)
+	{
+		r.e[i][i] = 1.0f;
+	}
+	return r;
+}
+
+Mat4 orthographic_projection(float l, float r, float t, float b, float n, float f)
+{
+	/*
+		| 2.0/(r-l)    0            0         0 |
+		| 0            2.0/(t-b)    0         0 |
+		| 0            0            1.0/(f-n) 0 |
+		| -(r+l)/(r-l) -(t+b)/(t-b) -n/(f-n)  1 |
+
+		NOTE: this matrix needs to be transformed before use in the shader (GLSL)
+	*/
+	Mat4 result = {};
+	result.e[0][0] = 2.0f / (r - l);
+	result.e[1][1] = 2.0f / (t - b);
+	result.e[2][2] = 1.0f / (f - n);
+	result.e[3][0] = -(r + l) / (r - l);
+	result.e[3][1] = -(t + b) / (t - b);
+	result.e[3][2] = -n / (f - n);
+	result.e[3][3] = 1.0f;
+	return result;
+}
+
+void transpose(Mat4 *m)
+{
+	for (uint i = 0; i < 4; ++i)
+	{
+		for (uint j = 0; j < 4; ++j)
+		{
+			float temp = m->e[i][j];
+			m->e[i][j] = m->e[j][i];
+			m->e[j][i] = temp;
+		}
+	}
+}
+
 #endif

@@ -56,6 +56,7 @@ struct GameVulkanContext
 	VkExtent2D swapchain_image_extent;
 	std::vector<VkImageView> swapchain_image_views;
 	VkRenderPass render_pass;
+	VkDescriptorSetLayout descriptor_set_layout;
 	VkPipelineLayout pipeline_layout;
 	VkPipeline graphics_pipeline;
 	std::vector<VkFramebuffer> swapchain_framebuffers;
@@ -967,6 +968,33 @@ bool32 game_vulkan_init()
 
 	
 
+	// create descriptor set layout
+	{
+		VkDescriptorSetLayoutBinding ubo_layout_binding{
+			.binding = 0,
+			.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+			.descriptorCount = 1,
+			.stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+		};
+
+		VkDescriptorSetLayoutCreateInfo layout_info{
+			.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+			.bindingCount = 1,
+			.pBindings = &ubo_layout_binding,
+		};
+
+		VkResult result = vkCreateDescriptorSetLayout(context.device, &layout_info, 0, &context.descriptor_set_layout);
+		if (VK_SUCCESS != result)
+		{
+			// TODO: log failure
+			return GAME_FAILURE;
+		}
+		
+		// TODO: log success
+	}
+
+
+
 	// create graphics pipeline
 	{
 		auto vert_shader_code = read_file("res/shaders/vert.spv");
@@ -1098,6 +1126,8 @@ bool32 game_vulkan_init()
 
 		VkPipelineLayoutCreateInfo pipeline_layout_info{
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+			.setLayoutCount = 1,
+			.pSetLayouts = &context.descriptor_set_layout,
 		};
 
 		VkResult result = vkCreatePipelineLayout(context.device, &pipeline_layout_info, 0, &context.pipeline_layout);
