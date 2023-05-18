@@ -113,7 +113,7 @@ Mat4 identity()
 	return r;
 }
 
-Mat4 orthographic_projection(float l, float r, float t, float b, float n, float f)
+Mat4 orthographic_projection(float l, float r, float b, float t, float n, float f, float aspect)
 {
 	/*
 		| 2.0/(r-l)    0            0         0 |
@@ -123,6 +123,9 @@ Mat4 orthographic_projection(float l, float r, float t, float b, float n, float 
 
 		NOTE: this matrix needs to be transformed before use in the shader (GLSL)
 	*/
+	l = l * aspect;
+	r = r * aspect;
+
 	Mat4 result = {};
 	result.e[0][0] = 2.0f / (r - l);
 	result.e[1][1] = 2.0f / (t - b);
@@ -134,17 +137,17 @@ Mat4 orthographic_projection(float l, float r, float t, float b, float n, float 
 	return result;
 }
 
-void transpose(Mat4 *m)
+Mat4 transpose(Mat4 m)
 {
+	Mat4 r = {};
 	for (uint i = 0; i < 4; ++i)
 	{
 		for (uint j = 0; j < 4; ++j)
 		{
-			float temp = m->e[i][j];
-			m->e[i][j] = m->e[j][i];
-			m->e[j][i] = temp;
+			r.e[i][j] = m.e[j][i];
 		}
 	}
+	return r;
 }
 
 #endif

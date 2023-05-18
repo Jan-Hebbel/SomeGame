@@ -41,6 +41,8 @@ constexpr bool enable_validation_layers = false;
 #error Unsrecognised build mode!
 #endif
 
+global_variable constexpr uint MAX_FRAMES_IN_FLIGHT = 2;
+
 struct GameVulkanContext
 {
 	VkInstance instance;
@@ -57,6 +59,8 @@ struct GameVulkanContext
 	std::vector<VkImageView> swapchain_image_views;
 	VkRenderPass render_pass;
 	VkDescriptorSetLayout descriptor_set_layout;
+	VkDescriptorPool descriptor_pool;
+	VkDescriptorSet descriptor_sets[MAX_FRAMES_IN_FLIGHT];
 	VkPipelineLayout pipeline_layout;
 	VkPipeline graphics_pipeline;
 	std::vector<VkFramebuffer> swapchain_framebuffers;
@@ -70,9 +74,11 @@ struct GameVulkanContext
 	VkDeviceMemory vertex_buffer_memory;
 	VkBuffer index_buffer;
 	VkDeviceMemory index_buffer_memory;
+	VkBuffer uniform_buffers[MAX_FRAMES_IN_FLIGHT];
+	VkDeviceMemory uniform_buffers_memory[MAX_FRAMES_IN_FLIGHT];
+	void *uniform_buffers_mapped[MAX_FRAMES_IN_FLIGHT];
 };
 
-global_variable constexpr uint MAX_FRAMES_IN_FLIGHT = 2;
 global_variable GameVulkanContext context{};
 
 // TODO: temporary solution
@@ -194,6 +200,8 @@ internal_function bool32 record_command_buffer(VkCommandBuffer command_buffer, u
 		.extent = context.swapchain_image_extent,
 	};
 	vkCmdSetScissor(command_buffer, 0, 1, &scissor);
+
+	vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context.pipeline_layout, 0, 1, &context.descriptor_sets[context.current_frame], 0, 0);
 
 	vkCmdDrawIndexed(command_buffer, sizeof(indices) / sizeof(indices[0]), 1, 0, 0, 0);
 
@@ -459,6 +467,17 @@ void recreate_swapchain()
 	create_framebuffers();
 }
 
+// NOTE: most efficient way to pass a frequently changing small amount of data to the shader are push constants @Performance
+void update_uniform_buffer(uint32_t current_image)
+{
+	Uniform_Buffer_Object ubo{
+		.model = identity(),
+		.view = identity(),
+		.proj = transpose(orthographic_projection(-5.0f, 5.0f, -5.0f, 5.0f, 0.1f, 2.0f, (float)context.swapchain_image_extent.width / (float)context.swapchain_image_extent.height)),
+	};
+	memcpy(context.uniform_buffers_mapped[current_image], &ubo, sizeof(ubo));
+}
+
 bool32 draw_frame(real64 ms_per_frame, real64 fps, real64 mcpf)
 {
 	// wait for the previous frame to finish
@@ -477,6 +496,8 @@ bool32 draw_frame(real64 ms_per_frame, real64 fps, real64 mcpf)
 		// TODO: log failure
 		return GAME_FAILURE;
 	}
+
+	update_uniform_buffer(context.current_frame);
 
 	// record a command buffer that draws the frame onto that image
 	vkResetCommandBuffer(context.command_buffers[context.current_frame], 0);
@@ -1202,7 +1223,7 @@ bool32 game_vulkan_init()
 
 		VkBuffer staging_buffer;
 		VkDeviceMemory staging_buffer_memory;
-		bool32 result = create_buffer(static_cast<uint32_t>(buffer_size), VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, staging_buffer, staging_buffer_memory);
+		bool32 result = create_buffer(static_cast<uint64_t>(buffer_size), VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, staging_buffer, staging_buffer_memory);
 		if (result != GAME_SUCCESS)
 		{
 			// TODO: log failure
@@ -1212,11 +1233,11 @@ bool32 game_vulkan_init()
 		// TODO: log success
 
 		void *data;
-		vkMapMemory(context.device, staging_buffer_memory, 0, static_cast<uint32_t>(buffer_size), 0, &data);
+		vkMapMemory(context.device, staging_buffer_memory, 0, static_cast<uint64_t>(buffer_size), 0, &data);
 		memcpy(data, vertices, buffer_size);
 		vkUnmapMemory(context.device, staging_buffer_memory);
 
-		result = create_buffer(static_cast<uint32_t>(buffer_size), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, context.vertex_buffer, context.vertex_buffer_memory);
+		result = create_buffer(static_cast<uint64_t>(buffer_size), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, context.vertex_buffer, context.vertex_buffer_memory);
 		if (result != GAME_SUCCESS)
 		{
 			// TODO: log failure
@@ -1237,7 +1258,7 @@ bool32 game_vulkan_init()
 
 		VkBuffer staging_buffer;
 		VkDeviceMemory staging_buffer_memory;
-		bool32 result = create_buffer(static_cast<uint32_t>(buffer_size), VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, staging_buffer, staging_buffer_memory);
+		bool32 result = create_buffer(static_cast<uint64_t>(buffer_size), VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, staging_buffer, staging_buffer_memory);
 		if (result != GAME_SUCCESS)
 		{
 			// TODO: log failure
@@ -1247,11 +1268,11 @@ bool32 game_vulkan_init()
 		// TODO: log success
 
 		void *data;
-		vkMapMemory(context.device, staging_buffer_memory, 0, static_cast<uint32_t>(buffer_size), 0, &data);
+		vkMapMemory(context.device, staging_buffer_memory, 0, static_cast<uint64_t>(buffer_size), 0, &data);
 		memcpy(data, indices, buffer_size);
 		vkUnmapMemory(context.device, staging_buffer_memory);
 
-		result = create_buffer(static_cast<uint32_t>(buffer_size), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, context.index_buffer, context.index_buffer_memory);
+		result = create_buffer(static_cast<uint64_t>(buffer_size), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, context.index_buffer, context.index_buffer_memory);
 		if (result != GAME_SUCCESS)
 		{
 			// TODO: log failure
@@ -1262,6 +1283,88 @@ bool32 game_vulkan_init()
 
 		vkDestroyBuffer(context.device, staging_buffer, 0);
 		vkFreeMemory(context.device, staging_buffer_memory, 0);
+	}
+
+
+
+	// create uniform buffers
+	{
+		VkDeviceSize buffer_size = sizeof(Uniform_Buffer_Object);
+		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
+		{
+			bool32 result = create_buffer(buffer_size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, context.uniform_buffers[i], context.uniform_buffers_memory[i]);
+
+			vkMapMemory(context.device, context.uniform_buffers_memory[i], 0, buffer_size, 0, &context.uniform_buffers_mapped[i]);
+		}
+	}
+
+
+
+	// create descriptor pool
+	{
+		VkDescriptorPoolSize pool_size{
+			.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+			.descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT),
+		};
+
+		VkDescriptorPoolCreateInfo pool_info{
+			.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+			.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT),
+			.poolSizeCount = 1,
+			.pPoolSizes = &pool_size,
+		};
+
+		VkResult result = vkCreateDescriptorPool(context.device, &pool_info, 0, &context.descriptor_pool);
+		if (VK_SUCCESS != result)
+		{
+			// TODO: log failure
+			return GAME_FAILURE;
+		}
+
+		// TODO: log success
+	}
+
+
+
+	// create descriptor sets
+	{
+		VkDescriptorSetLayout layouts[MAX_FRAMES_IN_FLIGHT];
+		for (uint32 i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
+		{
+			layouts[i] = context.descriptor_set_layout;
+		}
+		VkDescriptorSetAllocateInfo alloc_info{
+			.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+			.descriptorPool = context.descriptor_pool,
+			.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT),
+			.pSetLayouts = layouts,
+		};
+
+		VkResult result = vkAllocateDescriptorSets(context.device, &alloc_info, context.descriptor_sets);
+		if (VK_SUCCESS != result)
+		{
+			// TODO: log failure
+			return GAME_FAILURE;
+		}
+
+		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
+		{
+			VkDescriptorBufferInfo buffer_info{
+				.buffer = context.uniform_buffers[i],
+				.offset = 0,
+				.range = sizeof(Uniform_Buffer_Object),
+			};
+			VkWriteDescriptorSet descriptor_write{
+				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+				.dstSet = context.descriptor_sets[i],
+				.dstBinding = 0,
+				.dstArrayElement = 0,
+				.descriptorCount = 1,
+				.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+				.pBufferInfo = &buffer_info,
+			};
+			vkUpdateDescriptorSets(context.device, 1, &descriptor_write, 0, 0);
+		}
 	}
 
 
