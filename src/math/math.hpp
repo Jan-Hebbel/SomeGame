@@ -123,11 +123,6 @@ Mat4 orthographic_projection(float l, float r, float b, float t, float n, float 
 
 		NOTE: this matrix needs to be transformed before use in the (GLSL) shader
 	*/
-	float mid = (r + t) / 2.0f;
-	l = -r / mid;
-	r = r / mid;
-	b = -t / mid;
-	t = t / mid;
 	Mat4 result = {};
 	result.e[0][0] = 2.0f / (r - l);
 	result.e[1][1] = 2.0f / (t - b);
