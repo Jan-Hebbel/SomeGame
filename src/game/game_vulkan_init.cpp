@@ -23,6 +23,8 @@
 #include <vulkan/vulkan.h>
 #define STB_TRUETYPE_IMPLEMENTATION
 #include <lib/stb_truetype.h>
+#define STB_IMAGE_IMPLEMENTATION
+#include <lib/stb_image.h>
 
 #include <vector>
 #include <string>
@@ -116,7 +118,7 @@ global_variable const Vertex vertices[] = {
 	{.pos = {-0.5f, -0.5f}, .color = {1.0f, 0.0f, 0.0f}},
 	{.pos = {0.5f, -0.5f}, .color = {0.0f, 1.0f, 0.0f}},
 	{.pos = {0.5f, 0.5f}, .color = {0.0f, 0.0f, 1.0f}},
-	{.pos = {-0.5f, 0.5f}, .color = {1.0f, 1.0f, 1.0f}},
+	{.pos = {-0.5f, 0.5f}, .color = {1.0f, 1.0f, 0.0f}},
 };
 
 global_variable const uint16 indices[] = {
@@ -470,11 +472,13 @@ void recreate_swapchain()
 // NOTE: most efficient way to pass a frequently changing small amount of data to the shader are push constants @Performance
 void update_uniform_buffer(uint32_t current_image)
 {
+	float scale = 2.0f;
+	float aspect = (float)context.swapchain_image_extent.width / (float)context.swapchain_image_extent.height;
 	Uniform_Buffer_Object ubo{
 		.model = identity(),
 		.view = identity(),
 		// NOTE: transposing here because my math library stores matrices in row major notation
-		.proj = transpose(orthographic_projection(0.0f, (float)context.swapchain_image_extent.width, 0.0f, (float)context.swapchain_image_extent.height, 0.1f, 2.0f)),
+		.proj = transpose(orthographic_projection(-aspect * scale, aspect * scale, -scale, scale, 0.1f, 2.0f)),
 	};
 	memcpy(context.uniform_buffers_mapped[current_image], &ubo, sizeof(ubo));
 }
