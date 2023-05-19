@@ -473,7 +473,8 @@ void update_uniform_buffer(uint32_t current_image)
 	Uniform_Buffer_Object ubo{
 		.model = identity(),
 		.view = identity(),
-		.proj = transpose(orthographic_projection(-5.0f, 5.0f, -5.0f, 5.0f, 0.1f, 2.0f, (float)context.swapchain_image_extent.width / (float)context.swapchain_image_extent.height)), // NOTE: transposing here because my math library stores matrices in row major notation
+		// NOTE: transposing here because my math library stores matrices in row major notation
+		.proj = transpose(orthographic_projection(0.0f, (float)context.swapchain_image_extent.width, 0.0f, (float)context.swapchain_image_extent.height, 0.1f, 2.0f)),
 	};
 	memcpy(context.uniform_buffers_mapped[current_image], &ubo, sizeof(ubo));
 }

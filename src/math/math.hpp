@@ -113,7 +113,7 @@ Mat4 identity()
 	return r;
 }
 
-Mat4 orthographic_projection(float l, float r, float b, float t, float n, float f, float aspect)
+Mat4 orthographic_projection(float l, float r, float b, float t, float n, float f)
 {
 	/*
 		| 2.0/(r-l)    0            0         0 |
@@ -121,11 +121,13 @@ Mat4 orthographic_projection(float l, float r, float b, float t, float n, float 
 		| 0            0            1.0/(f-n) 0 |
 		| -(r+l)/(r-l) -(t+b)/(t-b) -n/(f-n)  1 |
 
-		NOTE: this matrix needs to be transformed before use in the shader (GLSL)
+		NOTE: this matrix needs to be transformed before use in the (GLSL) shader
 	*/
-	l = l * aspect;
-	r = r * aspect;
-
+	float mid = (r + t) / 2.0f;
+	l = -r / mid;
+	r = r / mid;
+	b = -t / mid;
+	t = t / mid;
 	Mat4 result = {};
 	result.e[0][0] = 2.0f / (r - l);
 	result.e[1][1] = 2.0f / (t - b);
