@@ -466,7 +466,9 @@ internal_function void platform_process_events()
 
 int CALLBACK WinMain(_In_ HINSTANCE h_instance, _In_opt_ HINSTANCE h_prev_instance, _In_ PSTR cmd_line, _In_ int cmdshow)
 {
+#ifdef _DEBUG
 	platform_logging_init();
+#endif
 
 	LARGE_INTEGER perf_count_frequency_result;
 	QueryPerformanceFrequency(&perf_count_frequency_result);
@@ -536,7 +538,9 @@ int CALLBACK WinMain(_In_ HINSTANCE h_instance, _In_opt_ HINSTANCE h_prev_instan
 	platform_destroy_sound_device();
 	//platform_destroy_window(); ????
 
+#ifdef _DEBUG
 	platform_logging_free();
+#endif
 	
 	return 0;
 }
