@@ -107,6 +107,7 @@
     <ClCompile Include="src\platform\platform_win32.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\lib\stb_image.h" />
     <ClInclude Include="src\lib\stb_truetype.h" />
     <ClInclude Include="src\game\game.hpp" />
     <ClInclude Include="src\game\game_vulkan.hpp" />
