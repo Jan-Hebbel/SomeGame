@@ -79,6 +79,10 @@ struct GameVulkanContext
 	VkBuffer uniform_buffers[MAX_FRAMES_IN_FLIGHT];
 	VkDeviceMemory uniform_buffers_memory[MAX_FRAMES_IN_FLIGHT];
 	void *uniform_buffers_mapped[MAX_FRAMES_IN_FLIGHT];
+	VkImage texture_image;
+	VkDeviceMemory texture_image_memory;
+	VkImageView texture_image_view;
+	VkSampler texture_sampler;
 };
 
 global_variable GameVulkanContext context{};
@@ -104,7 +108,7 @@ struct SwapchainDetails
 struct Vertex
 {
 	Vec2 pos;
-	Vec3 color;
+	Vec2 tex_coord;
 };
 
 struct Uniform_Buffer_Object
@@ -115,10 +119,10 @@ struct Uniform_Buffer_Object
 };
 
 global_variable const Vertex vertices[] = {
-	{.pos = {-0.5f, -0.5f}, .color = {1.0f, 0.0f, 0.0f}},
-	{.pos = {0.5f, -0.5f}, .color = {0.0f, 1.0f, 0.0f}},
-	{.pos = {0.5f, 0.5f}, .color = {0.0f, 0.0f, 1.0f}},
-	{.pos = {-0.5f, 0.5f}, .color = {1.0f, 1.0f, 0.0f}},
+	{.pos = {-0.5f, -0.5f}, .tex_coord = {0.0f, 0.0f}},
+	{.pos = {0.5f, -0.5f}, .tex_coord = {1.0f, 0.0f}},
+	{.pos = {0.5f, 0.5f}, .tex_coord = {1.0f, 1.0f}},
+	{.pos = {-0.5f, 0.5f}, .tex_coord = {0.0f, 1.0f}},
 };
 
 global_variable const uint16 indices[] = {
@@ -622,7 +626,7 @@ bool32 create_buffer(VkDeviceSize size, VkBufferUsageFlags usage_flags, VkMemory
 	return GAME_SUCCESS;
 }
 
-void copy_buffer(VkBuffer src_buffer, VkBuffer dst_buffer, VkDeviceSize size)
+VkCommandBuffer begin_single_time_commands()
 {
 	VkCommandBufferAllocateInfo alloc_info{
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
@@ -640,13 +644,11 @@ void copy_buffer(VkBuffer src_buffer, VkBuffer dst_buffer, VkDeviceSize size)
 	};
 	vkBeginCommandBuffer(command_buffer, &begin_info);
 
-	VkBufferCopy copy_region{
-		.srcOffset = 0,
-		.dstOffset = 0,
-		.size = size,
-	};
-	vkCmdCopyBuffer(command_buffer, src_buffer, dst_buffer, 1, &copy_region);
+	return command_buffer;
+}
 
+void end_single_time_commands(VkCommandBuffer command_buffer)
+{
 	vkEndCommandBuffer(command_buffer);
 
 	VkSubmitInfo submit_info{
@@ -658,6 +660,122 @@ void copy_buffer(VkBuffer src_buffer, VkBuffer dst_buffer, VkDeviceSize size)
 	vkQueueWaitIdle(context.graphics_queue); // @Speed @Performance; use vkWaitForFences
 
 	vkFreeCommandBuffers(context.device, context.command_pool, 1, &command_buffer);
+}
+
+void copy_buffer(VkBuffer src_buffer, VkBuffer dst_buffer, VkDeviceSize size)
+{
+	VkCommandBuffer command_buffer = begin_single_time_commands();
+
+	VkBufferCopy copy_region{
+		.srcOffset = 0,
+		.dstOffset = 0,
+		.size = size,
+	};
+	vkCmdCopyBuffer(command_buffer, src_buffer, dst_buffer, 1, &copy_region);
+
+	end_single_time_commands(command_buffer);
+}
+
+void create_image(uint32 width, uint32 height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage_flags, VkMemoryPropertyFlags property_flags, VkImage &image, VkDeviceMemory &image_memory)
+{
+	VkImageCreateInfo image_info{
+		.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+		.imageType = VK_IMAGE_TYPE_2D,
+		.format = format,
+		.extent = { static_cast<uint32_t>(width), static_cast<uint32_t>(height), 1 },
+		.mipLevels = 1,
+		.arrayLayers = 1,
+		.samples = VK_SAMPLE_COUNT_1_BIT,
+		.tiling = tiling,
+		.usage = usage_flags,
+		.sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+		.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+	};
+	VkResult result2 = vkCreateImage(context.device, &image_info, 0, &image);
+	if (result2 != VK_SUCCESS)
+	{
+		platform_log("Failed to create a vulkan image for the texture!\n");
+		return;
+	}
+	VkMemoryRequirements memory_requirements;
+	vkGetImageMemoryRequirements(context.device, image, &memory_requirements);
+
+	uint32_t index;
+	find_memory_type(memory_requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &index);
+	VkMemoryAllocateInfo alloc_info{
+		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+		.allocationSize = memory_requirements.size,
+		.memoryTypeIndex = index,
+	};
+
+	result2 = vkAllocateMemory(context.device, &alloc_info, 0, &image_memory);
+	if (result2 != VK_SUCCESS)
+	{
+		platform_log("Failed to allocate memory for the vulkan image!\n");
+		return;
+	}
+
+	vkBindImageMemory(context.device, image, image_memory, 0);
+}
+
+void transition_image_layout(VkImage image, VkFormat format, VkImageLayout old_layout, VkImageLayout new_layout)
+{
+	VkCommandBuffer command_buffer = begin_single_time_commands();
+
+	VkImageMemoryBarrier barrier{
+		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+		.oldLayout = old_layout,
+		.newLayout = new_layout,
+		.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+		.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+		.image = image,
+		.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 },
+	};
+
+	VkPipelineStageFlags source_stage;
+	VkPipelineStageFlags destination_stage;
+	if (old_layout == VK_IMAGE_LAYOUT_UNDEFINED && new_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
+	{
+		barrier.srcAccessMask = 0;
+		barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+
+		source_stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+		destination_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+	}
+	else if (old_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && new_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+	{
+		barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+		source_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+		destination_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+	}
+	else
+	{
+		platform_log("Unsupported layout transition!\n");
+		return; 
+	}
+
+	vkCmdPipelineBarrier(command_buffer, source_stage, destination_stage, 0, 0, 0, 0, 0, 1, &barrier);
+
+	end_single_time_commands(command_buffer);
+}
+
+void copy_buffer_to_image(VkBuffer buffer, VkImage image, uint32 width, uint32 height)
+{
+	VkCommandBuffer command_buffer = begin_single_time_commands();
+
+	VkBufferImageCopy region{
+		.bufferOffset = 0,
+		.bufferRowLength = 0,
+		.bufferImageHeight = 0,
+		.imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 },
+		.imageOffset = { 0, 0, 0 },
+		.imageExtent = { width, height, 1 },
+	};
+	vkCmdCopyBufferToImage(command_buffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+	end_single_time_commands(command_buffer);
 }
 
 bool32 game_vulkan_init()
@@ -1003,10 +1121,19 @@ bool32 game_vulkan_init()
 			.stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
 		};
 
+		VkDescriptorSetLayoutBinding sampler_layout_binding{
+			.binding = 1,
+			.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+			.descriptorCount = 1,
+			.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+		};
+
+		VkDescriptorSetLayoutBinding bindings[] = { ubo_layout_binding, sampler_layout_binding };
+
 		VkDescriptorSetLayoutCreateInfo layout_info{
 			.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-			.bindingCount = 1,
-			.pBindings = &ubo_layout_binding,
+			.bindingCount = sizeof(bindings) / sizeof(bindings[0]),
+			.pBindings = bindings,
 		};
 
 		VkResult result = vkCreateDescriptorSetLayout(context.device, &layout_info, 0, &context.descriptor_set_layout);
@@ -1076,8 +1203,8 @@ bool32 game_vulkan_init()
 		attribute_descriptions[0].offset = offsetof(Vertex, pos);
 		attribute_descriptions[1].binding = 0;
 		attribute_descriptions[1].location = 1;
-		attribute_descriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-		attribute_descriptions[1].offset = offsetof(Vertex, color);
+		attribute_descriptions[1].format = VK_FORMAT_R32G32_SFLOAT;
+		attribute_descriptions[1].offset = offsetof(Vertex, tex_coord);
 		VkPipelineVertexInputStateCreateInfo vertex_input_info{};
 		vertex_input_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 		vertex_input_info.vertexBindingDescriptionCount = 1;
@@ -1222,6 +1349,99 @@ bool32 game_vulkan_init()
 
 
 
+	// create texture image
+	{
+		int width, height, channels;
+		stbi_uc *pixels = stbi_load("res/textures/dog.png", &width, &height, &channels, STBI_rgb_alpha);
+		VkDeviceSize image_size = width * height * 4;
+		if (!pixels) 
+		{
+			platform_log("Failed to load texture!\n");
+		}
+		else 
+		{
+			VkBuffer staging_buffer;
+			VkDeviceMemory staging_buffer_memory;
+			bool32 result = create_buffer(image_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, staging_buffer, staging_buffer_memory);
+			if (result != GAME_SUCCESS)
+			{
+				platform_log("Failed to create staging buffer for texture!\n");
+				stbi_image_free(pixels);
+			}
+			else
+			{
+				void *data;
+				vkMapMemory(context.device, staging_buffer_memory, 0, image_size, 0, &data);
+				memcpy(data, pixels, static_cast<size_t>(image_size));
+				vkUnmapMemory(context.device, staging_buffer_memory);
+				stbi_image_free(pixels);
+
+				create_image(width, height, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, context.texture_image, context.texture_image_memory);
+
+				transition_image_layout(context.texture_image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+				copy_buffer_to_image(staging_buffer, context.texture_image, static_cast<uint32_t>(width), static_cast<uint32_t>(height));
+
+				transition_image_layout(context.texture_image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+				vkDestroyBuffer(context.device, staging_buffer, 0);
+				vkFreeMemory(context.device, staging_buffer_memory, 0);
+			}
+		}
+	}
+
+
+
+	// create texture image view
+	{
+		VkImageViewCreateInfo view_info{
+			.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+			.image = context.texture_image,
+			.viewType = VK_IMAGE_VIEW_TYPE_2D,
+			.format = VK_FORMAT_R8G8B8A8_SRGB,
+			.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 },
+		};
+		VkResult result = vkCreateImageView(context.device, &view_info, 0, &context.texture_image_view);
+		if (result != VK_SUCCESS)
+		{
+			// TODO: log failure
+			return GAME_FAILURE;
+		}
+		// TODO: log success
+	}
+
+
+
+	// create texture sampler
+	{
+		VkSamplerCreateInfo sampler_info{
+			.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+			.magFilter = VK_FILTER_NEAREST,
+			.minFilter = VK_FILTER_NEAREST,
+			.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
+			.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+			.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+			.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+			.mipLodBias = 0.0f,
+			.anisotropyEnable = VK_FALSE,
+			.compareEnable = VK_FALSE,
+			.compareOp = VK_COMPARE_OP_ALWAYS,
+			.minLod = 0.0f,
+			.maxLod = 0.0f,
+			.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
+			.unnormalizedCoordinates = VK_FALSE,
+		};
+		VkResult result = vkCreateSampler(context.device, &sampler_info, 0, &context.texture_sampler);
+		if (result != VK_SUCCESS)
+		{
+			// TODO: log failure
+			return GAME_FAILURE;
+		}
+		// TODO: log success
+	}
+
+
+
 	// create vertex buffer
 	{
 		size_t buffer_size = sizeof(vertices);
@@ -1307,16 +1527,22 @@ bool32 game_vulkan_init()
 
 	// create descriptor pool
 	{
-		VkDescriptorPoolSize pool_size{
-			.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-			.descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT),
+		VkDescriptorPoolSize pool_sizes[] = {
+			{
+				.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+				.descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT),
+			},
+			{
+				.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+				.descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT),
+			}
 		};
 
 		VkDescriptorPoolCreateInfo pool_info{
 			.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
 			.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT),
-			.poolSizeCount = 1,
-			.pPoolSizes = &pool_size,
+			.poolSizeCount = sizeof(pool_sizes) / sizeof(pool_sizes[0]),
+			.pPoolSizes = pool_sizes,
 		};
 
 		VkResult result = vkCreateDescriptorPool(context.device, &pool_info, 0, &context.descriptor_pool);
@@ -1359,16 +1585,32 @@ bool32 game_vulkan_init()
 				.offset = 0,
 				.range = sizeof(Uniform_Buffer_Object),
 			};
-			VkWriteDescriptorSet descriptor_write{
-				.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-				.dstSet = context.descriptor_sets[i],
-				.dstBinding = 0,
-				.dstArrayElement = 0,
-				.descriptorCount = 1,
-				.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-				.pBufferInfo = &buffer_info,
+			VkDescriptorImageInfo image_info{
+				.sampler = context.texture_sampler,
+				.imageView = context.texture_image_view,
+				.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 			};
-			vkUpdateDescriptorSets(context.device, 1, &descriptor_write, 0, 0);
+			VkWriteDescriptorSet descriptor_writes[] = {
+				{
+					.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+					.dstSet = context.descriptor_sets[i],
+					.dstBinding = 0,
+					.dstArrayElement = 0,
+					.descriptorCount = 1,
+					.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+					.pBufferInfo = &buffer_info,
+				},
+				{
+					.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+					.dstSet = context.descriptor_sets[i],
+					.dstBinding = 1,
+					.dstArrayElement = 0,
+					.descriptorCount = 1,
+					.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+					.pImageInfo = &image_info,
+				},
+			};
+			vkUpdateDescriptorSets(context.device, sizeof(descriptor_writes) / sizeof(descriptor_writes[0]), descriptor_writes, 0, 0);
 		}
 	}
 
