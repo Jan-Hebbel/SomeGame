@@ -1352,7 +1352,7 @@ bool32 game_vulkan_init()
 	// create texture image
 	{
 		int width, height, channels;
-		stbi_uc *pixels = stbi_load("res/textures/dog.png", &width, &height, &channels, STBI_rgb_alpha);
+		stbi_uc *pixels = stbi_load("res/textures/idea1.png", &width, &height, &channels, STBI_rgb_alpha);
 		VkDeviceSize image_size = width * height * 4;
 		if (!pixels) 
 		{
