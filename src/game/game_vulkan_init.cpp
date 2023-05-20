@@ -1,11 +1,10 @@
 
 /*
 	TODO:
+	* memory arena
 	* display text to screen
 	* free everything 
 	* take care of @Performance tags
-	* replace std::vectors
-	* memory arena
 */
 
 #define _CRT_SECURE_NO_WARNINGS
@@ -142,30 +141,37 @@ VKAPI_ATTR VkBool32 VKAPI_CALL vulkan_debug_callback(VkDebugUtilsMessageSeverity
 	return VK_FALSE;
 }
 
-internal_function std::vector<char> read_file(const std::string &filename)
+internal_function size_t read_file(const std::string &filename, char **buffer)
 {
-	std::vector<char> buffer;
+	*buffer = NULL;
 
 	std::ifstream file(filename, std::ios::ate | std::ios::binary);
 	if (!file.is_open())
 	{
-		return buffer;
+		return 0;
 	}
 
 	size_t file_size = (size_t)file.tellg();
-	buffer.resize(file_size);
+	*buffer = (char *)malloc(sizeof(char) * file_size);
+	if (!*buffer) return 0;
 	file.seekg(0);
-	file.read(buffer.data(), file_size);
+	file.read(*buffer, file_size);
 	file.close();
 
-	return buffer;
+	return file_size;
 }
 
-void game_load_font_to_bitmap(const char *file)
+// TODO: load "res/fonts/SourceCodePro-Regular.ttf"
+void game_load_font_to_bitmap(const char *file_path)
 {
 	// NOTE: stbtt_BakeFontBitmap expects unsigned char, possible error?
-	size_t chars_read = fread(ttf_buffer, 1, 1 << 20, fopen("res/fonts/SourceCodePro-Regular.ttf", "rb"));
+	FILE *file = fopen(file_path, "rb");
+	if (!file) return;
+
+	size_t chars_read = fread(ttf_buffer, 1, 1 << 20, file);
 	stbtt_BakeFontBitmap(ttf_buffer, 0, 16.0f, font_bitmap, 1024, 1024, 32, 96, data);
+
+	fclose(file);
 }
 
 internal_function void record_command_buffer(VkCommandBuffer command_buffer, uint32 image_index)
@@ -1170,25 +1176,41 @@ bool32 game_vulkan_init()
 
 	// create graphics pipeline
 	{
-		auto vert_shader_code = read_file("res/shaders/vert.spv");
-		auto frag_shader_code = read_file("res/shaders/frag.spv");
+		char *vert_shader_code;
+		size_t vert_shader_code_size = read_file("res/shaders/vert.spv", &vert_shader_code);
+		char *frag_shader_code;
+		size_t frag_shader_code_size = read_file("res/shaders/frag.spv", &frag_shader_code);
 
 		// wrap vertex shader code in VkShaderModule object
 		VkShaderModuleCreateInfo vertex_shader_module_info{};
 		vertex_shader_module_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-		vertex_shader_module_info.codeSize = vert_shader_code.size();
-		vertex_shader_module_info.pCode = reinterpret_cast<const uint32_t *>(vert_shader_code.data());
+		vertex_shader_module_info.codeSize = vert_shader_code_size;
+		vertex_shader_module_info.pCode = reinterpret_cast<const uint32_t *>(vert_shader_code);
 
 		VkShaderModule vertex_shader_module;
-		vkCreateShaderModule(context.device, &vertex_shader_module_info, 0, &vertex_shader_module);
+		VkResult result = vkCreateShaderModule(context.device, &vertex_shader_module_info, 0, &vertex_shader_module);
+		if (VK_SUCCESS != result)
+		{
+			platform_log("Fatal: Failed to create a shader module with the vertex shader code!\n");
+			return GAME_FAILURE;
+		}
+
+		free(vert_shader_code);
 
 		VkShaderModuleCreateInfo fragment_shader_module_info{};
 		fragment_shader_module_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-		fragment_shader_module_info.codeSize = frag_shader_code.size();
-		fragment_shader_module_info.pCode = reinterpret_cast<const uint32_t *>(frag_shader_code.data());
+		fragment_shader_module_info.codeSize = frag_shader_code_size;
+		fragment_shader_module_info.pCode = reinterpret_cast<const uint32_t *>(frag_shader_code);
 
 		VkShaderModule fragment_shader_module;
-		vkCreateShaderModule(context.device, &fragment_shader_module_info, 0, &fragment_shader_module);
+		result = vkCreateShaderModule(context.device, &fragment_shader_module_info, 0, &fragment_shader_module);
+		if (VK_SUCCESS != result)
+		{
+			platform_log("Fatal: Failed to create a shader module with the fragment shader code!\n");
+			return GAME_FAILURE;
+		}
+
+		free(frag_shader_code);
 
 		// Do something with the shader modules
 		VkPipelineShaderStageCreateInfo vert_shader_stage_info{};
@@ -1290,7 +1312,7 @@ bool32 game_vulkan_init()
 			.pSetLayouts = &context.descriptor_set_layout,
 		};
 
-		VkResult result = vkCreatePipelineLayout(context.device, &pipeline_layout_info, 0, &context.pipeline_layout);
+		result = vkCreatePipelineLayout(context.device, &pipeline_layout_info, 0, &context.pipeline_layout);
 		if (result != VK_SUCCESS)
 		{
 			platform_log("Fatal: Failed to create pipeline layout!\n");
