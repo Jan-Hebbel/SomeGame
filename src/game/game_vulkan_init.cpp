@@ -5,6 +5,7 @@
 	* free everything 
 	* take care of @Performance tags
 	* replace std::vectors
+	* memory arena
 */
 
 #define _CRT_SECURE_NO_WARNINGS
@@ -798,7 +799,8 @@ bool32 game_vulkan_init()
 		VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
 	messenger_info.pfnUserCallback = vulkan_debug_callback;
 
-	std::vector<const char *> device_extensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
+	const char *device_extensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+	uint device_extensions_size = sizeof(device_extensions) / sizeof(device_extensions[0]);
 
 
 
@@ -944,15 +946,32 @@ bool32 game_vulkan_init()
 			// are my device extensions supported for this physical device?
 			uint32 property_count;
 			vkEnumerateDeviceExtensionProperties(physical_device, 0, &property_count, 0);
-			// TODO: vector?
-			std::vector<VkExtensionProperties> available_device_extensions(property_count);
-			vkEnumerateDeviceExtensionProperties(physical_device, 0, &property_count, available_device_extensions.data());
-			std::set<std::string> required_device_extensions(device_extensions.begin(), device_extensions.end());
-			for (const auto &extension : available_device_extensions)
+			
+			VkExtensionProperties *available_device_extensions = (VkExtensionProperties *)malloc(sizeof(VkExtensionProperties) * property_count);
+			if (!available_device_extensions)
 			{
-				required_device_extensions.erase(extension.extensionName);
+				platform_log("Fatal: Failed to allocate memory for VkExtensionProperties dynamic memory!\n");
+				return GAME_FAILURE;
+			}
+			vkEnumerateDeviceExtensionProperties(physical_device, 0, &property_count, available_device_extensions);
+			uint extensions_supported = 0;
+			bool all_device_extensions_supported = false;
+			for (uint i = 0; i < property_count; ++i)
+			{
+				if (0 == strcmp(device_extensions[extensions_supported], available_device_extensions[i].extensionName))
+					++extensions_supported;
 
-				if (required_device_extensions.empty()) break;
+				if (extensions_supported == device_extensions_size)
+				{
+					all_device_extensions_supported = true;
+					break;
+				}
+			}
+			free(available_device_extensions);
+			if (!all_device_extensions_supported)
+			{
+				platform_log("Fatal: Not all specified device extensions are supported!\n");
+				return GAME_FAILURE;
 			}
 
 			// does this device support the swapchain i want to create?
@@ -961,7 +980,7 @@ bool32 game_vulkan_init()
 			
 			// search for other devices if the current driver is not a dedicated gpu, doesnt support the required queue families, doesnt support the required device extensions
 			// TODO: (potentially support multiple graphics cards)
-			if (queue_family_indices_is_complete && physical_device_properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU && required_device_extensions.empty() && swapchain_supported)
+			if (queue_family_indices_is_complete && physical_device_properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU && all_device_extensions_supported && swapchain_supported)
 			{
 				// picking physical device here
 				context.physical_device = physical_device;
@@ -1007,8 +1026,8 @@ bool32 game_vulkan_init()
 		device_info.queueCreateInfoCount = static_cast<uint32_t>(queue_infos.size());
 		device_info.pQueueCreateInfos = queue_infos.data();
 		// TODO: set layer info for older version (since deprecated)?
-		device_info.enabledExtensionCount = static_cast<uint32_t>(device_extensions.size());
-		device_info.ppEnabledExtensionNames = device_extensions.data();
+		device_info.enabledExtensionCount = static_cast<uint32_t>(device_extensions_size);
+		device_info.ppEnabledExtensionNames = device_extensions;
 		device_info.pEnabledFeatures = &device_features;
 
 		VkResult result = vkCreateDevice(context.physical_device, &device_info, 0, &context.device);
