@@ -829,15 +829,14 @@ bool32 game_vulkan_init()
 			uint32 supported_layer_count = 0;
 			vkEnumerateInstanceLayerProperties(&supported_layer_count, 0);
 
-			// TODO: memory arena
-			std::vector<VkLayerProperties> layer_properties_dynamic_array(supported_layer_count);
-			vkEnumerateInstanceLayerProperties(&supported_layer_count, layer_properties_dynamic_array.data());
+			VkLayerProperties *layer_properties_dynamic_array = (VkLayerProperties *)malloc(supported_layer_count * sizeof(VkLayerProperties));
+			vkEnumerateInstanceLayerProperties(&supported_layer_count, layer_properties_dynamic_array);
 
-			for (const auto &layer_properties : layer_properties_dynamic_array)
+			for (uint i = 0; i < supported_layer_count; ++i)
 			{
-				for (uint i = 0; i < layer_count; ++i)
+				for (uint j = 0; j < layer_count; ++j)
 				{
-					if (std::strcmp(layer_properties.layerName, layers[i]) == 0)
+					if (strcmp(layer_properties_dynamic_array[i].layerName, layers[j]) == 0)
 					{
 						layers_supported = true;
 						break;
