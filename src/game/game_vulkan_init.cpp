@@ -830,6 +830,11 @@ bool32 game_vulkan_init()
 			vkEnumerateInstanceLayerProperties(&supported_layer_count, 0);
 
 			VkLayerProperties *layer_properties_dynamic_array = (VkLayerProperties *)malloc(supported_layer_count * sizeof(VkLayerProperties));
+			if (!layer_properties_dynamic_array)
+			{
+				platform_log("Fatal: Failed to allocate memory for all layer properties!\n");
+				return GAME_FAILURE;
+			}
 			vkEnumerateInstanceLayerProperties(&supported_layer_count, layer_properties_dynamic_array);
 
 			for (uint i = 0; i < supported_layer_count; ++i)
@@ -846,6 +851,8 @@ bool32 game_vulkan_init()
 				if (layers_supported)
 					break;
 			}
+
+			free(layer_properties_dynamic_array);
 
 			if (layers_supported)
 			{
@@ -928,13 +935,19 @@ bool32 game_vulkan_init()
 		uint32 physical_device_count = 0;
 		vkEnumeratePhysicalDevices(context.instance, &physical_device_count, 0);
 
-		// TODO: vector?
-		std::vector<VkPhysicalDevice> physical_devices(physical_device_count);
-		vkEnumeratePhysicalDevices(context.instance, &physical_device_count, physical_devices.data());
+		VkPhysicalDevice *physical_devices = (VkPhysicalDevice *)malloc(physical_device_count * sizeof(VkPhysicalDevice));
+		if (!physical_devices)
+		{
+			platform_log("Fatal: Failed to allocate memory for all physical devices!\n");
+			return GAME_FAILURE;
+		}
+		vkEnumeratePhysicalDevices(context.instance, &physical_device_count, physical_devices);
 
 		// going through all physical devices and picking the one that is suitable for our needs
-		for (const auto &physical_device : physical_devices)
+		for (uint i = 0; i < physical_device_count; ++i)
 		{
+			VkPhysicalDevice physical_device = physical_devices[i];
+
 			VkPhysicalDeviceProperties physical_device_properties;
 			vkGetPhysicalDeviceProperties(physical_device, &physical_device_properties);
 
@@ -987,6 +1000,8 @@ bool32 game_vulkan_init()
 			}
 		}
 
+		free(physical_devices);
+
 		if (context.physical_device == 0)
 		{
 			platform_error_message_window("Error!", "Your device has no suitable Vulkan driver!");
@@ -1003,10 +1018,16 @@ bool32 game_vulkan_init()
 	// create logical device
 	{
 		// queues to be created with the logical device
-		std::vector<VkDeviceQueueCreateInfo> queue_infos{};
 		std::set<uint32_t> unique_queue_family_indices = { queue_family_indices.graphics_family.value(), queue_family_indices.present_family.value() };
+		VkDeviceQueueCreateInfo *queue_infos = (VkDeviceQueueCreateInfo *)malloc(unique_queue_family_indices.size() * sizeof(VkDeviceQueueCreateInfo));
+		if (!queue_infos)
+		{
+			platform_log("Fatal: Failed to allocate enough memory for all queue infos!\n");
+			return GAME_FAILURE;
+		}
 
 		float queue_priority = 1.0f;
+		uint i = 0;
 		for (const auto &queue_family_index : unique_queue_family_indices)
 		{
 			VkDeviceQueueCreateInfo queue_info{};
@@ -1014,7 +1035,8 @@ bool32 game_vulkan_init()
 			queue_info.queueFamilyIndex = queue_family_index;
 			queue_info.queueCount = 1;
 			queue_info.pQueuePriorities = &queue_priority;
-			queue_infos.push_back(queue_info);
+			queue_infos[i] = queue_info;
+			++i;
 		}
 
 		// device creation; unused for now
@@ -1022,8 +1044,8 @@ bool32 game_vulkan_init()
 
 		VkDeviceCreateInfo device_info{};
 		device_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-		device_info.queueCreateInfoCount = static_cast<uint32_t>(queue_infos.size());
-		device_info.pQueueCreateInfos = queue_infos.data();
+		device_info.queueCreateInfoCount = static_cast<uint32_t>(unique_queue_family_indices.size());
+		device_info.pQueueCreateInfos = queue_infos;
 		// TODO: set layer info for older version (since deprecated)?
 		device_info.enabledExtensionCount = static_cast<uint32_t>(device_extensions_size);
 		device_info.ppEnabledExtensionNames = device_extensions;
@@ -1035,6 +1057,8 @@ bool32 game_vulkan_init()
 			platform_log("Fatal: Failed to create logical device!\n");
 			return GAME_FAILURE;
 		}
+
+		free(queue_infos);
 
 		// get handle to graphics queue; these are the same since we chose a queue family that can do both
 		vkGetDeviceQueue(context.device, queue_family_indices.graphics_family.value(), 0, &context.graphics_queue);
