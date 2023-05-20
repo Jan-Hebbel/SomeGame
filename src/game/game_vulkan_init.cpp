@@ -784,14 +784,6 @@ void copy_buffer_to_image(VkBuffer buffer, VkImage image, uint32 width, uint32 h
 
 bool32 game_vulkan_init()
 {
-	// vulkan extensions
-	std::vector<const char *> extensions = {
-		VK_KHR_SURFACE_EXTENSION_NAME,
-#ifdef VK_USE_PLATFORM_WIN32_KHR
-		VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
-#endif
-	};
-
 	// debug callback: which messages are filtered and which are not
 	VkDebugUtilsMessengerCreateInfoEXT messenger_info{};
 	messenger_info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
@@ -861,7 +853,7 @@ bool32 game_vulkan_init()
 
 				instance_info.pNext = &messenger_info;
 
-				extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+				++extension_count;
 			}
 			else
 			{
@@ -880,8 +872,8 @@ bool32 game_vulkan_init()
 			instance_info.pNext = 0;
 		}
 
-		instance_info.enabledExtensionCount = (uint32)extensions.size();
-		instance_info.ppEnabledExtensionNames = extensions.data();
+		instance_info.enabledExtensionCount = extension_count;
+		instance_info.ppEnabledExtensionNames = extensions;
 
 		VkResult result = vkCreateInstance(&instance_info, 0, &context.instance);
 		if (VK_SUCCESS != result)

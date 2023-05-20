@@ -12,6 +12,13 @@ struct Win32WindowHandles
 	HWND hwnd;
 };
 
+uint32_t extension_count = 2;
+const char *extensions[] = {
+	VK_KHR_SURFACE_EXTENSION_NAME,
+	VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
+	VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
+};
+
 // creates a win32 surface; returns 0 on success and 1 on failure
 internal_function bool32 vulkan_surface_create(VkInstance instance, VkSurfaceKHR *p_surface)
 {
