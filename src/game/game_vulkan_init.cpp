@@ -37,6 +37,7 @@
 #include <algorithm>
 #include <fstream>
 #include <stdio.h>
+#include <stdlib.h>
 #include <assert.h>
 
 #ifdef _DEBUG
@@ -265,15 +266,21 @@ SwapchainDetails get_swapchain_support_details(VkPhysicalDevice physical_device)
 QueueFamilyIndices get_queue_family_indices(VkPhysicalDevice physical_device)
 {
 	QueueFamilyIndices queue_family_indices{};
+
 	uint32 queue_family_count;
 	vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &queue_family_count, 0);
-	// TODO: vector?
-	std::vector<VkQueueFamilyProperties> queue_family_properties_array(queue_family_count);
-	vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &queue_family_count, queue_family_properties_array.data());
 
-	int i = 0;
-	for (const auto &queue_family_properties : queue_family_properties_array)
+	VkQueueFamilyProperties *queue_family_properties_array = (VkQueueFamilyProperties *)malloc(sizeof(VkQueueFamilyProperties) * queue_family_count);
+	if (queue_family_properties_array == NULL)
 	{
+		platform_log("Fatal: Failed to allocate memory for queue_family_properties_array!\n");
+		return queue_family_indices;
+	}
+	vkGetPhysicalDeviceQueueFamilyProperties(physical_device, &queue_family_count, queue_family_properties_array);
+
+	for (uint i = 0; i < queue_family_count; ++i)
+	{
+		VkQueueFamilyProperties queue_family_properties = queue_family_properties_array[i];
 		// NOTE: there might be a change in logic necessary if for some reason another queue family is better
 		if (queue_family_properties.queueFlags & VK_QUEUE_GRAPHICS_BIT)
 		{
@@ -292,10 +299,9 @@ QueueFamilyIndices get_queue_family_indices(VkPhysicalDevice physical_device)
 		{
 			break;
 		}
-
-		++i;
 	}
 
+	free(queue_family_properties_array);
 	return queue_family_indices;
 }
 
