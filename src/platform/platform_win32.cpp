@@ -27,6 +27,8 @@
 #include <windows.h>
 #include <xaudio2.h>
 
+#include <assert.h> // getchar()
+
 struct Win32WindowHandles
 {
 	HINSTANCE hinstance;
@@ -490,9 +492,10 @@ int CALLBACK WinMain(_In_ HINSTANCE h_instance, _In_opt_ HINSTANCE h_prev_instan
 	game_load_font_to_bitmap("res/fonts/SourceCodePro-Regular.ttf");
 
 	bool32 result_vulkan_init = game_vulkan_init();
-	if (result_vulkan_init == GAME_FAILURE)
+	if (result_vulkan_init != GAME_SUCCESS)
 	{
-		exit(1);
+		platform_log("Fatal: Failed to initialize vulkan!\n");
+		assert(result_vulkan_init == GAME_SUCCESS);
 	}
 	
 	should_close = 0;

@@ -1,7 +1,10 @@
 
 /*
 	TODO:
-	* render while window is begin resized?
+	* display text to screen
+	* free everything 
+	* take care of @Performance tags
+	* replace std::vectors
 */
 
 #define _CRT_SECURE_NO_WARNINGS
@@ -34,6 +37,7 @@
 #include <algorithm>
 #include <fstream>
 #include <stdio.h>
+#include <assert.h>
 
 #ifdef _DEBUG
 constexpr bool enable_validation_layers = true;
@@ -131,7 +135,7 @@ global_variable const uint16 indices[] = {
 
 VKAPI_ATTR VkBool32 VKAPI_CALL vulkan_debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT type, const VkDebugUtilsMessengerCallbackDataEXT *p_callback_data, void *p_user_data)
 {
-	platform_log("%s\n\r", p_callback_data->pMessage);
+	platform_log("%s\n", p_callback_data->pMessage);
 
 	return VK_FALSE;
 }
@@ -162,15 +166,17 @@ void game_load_font_to_bitmap(const char *file)
 	stbtt_BakeFontBitmap(ttf_buffer, 0, 16.0f, font_bitmap, 1024, 1024, 32, 96, data);
 }
 
-internal_function bool32 record_command_buffer(VkCommandBuffer command_buffer, uint32 image_index)
+internal_function void record_command_buffer(VkCommandBuffer command_buffer, uint32 image_index)
 {
 	VkCommandBufferBeginInfo begin_info{
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
 	};
 
-	if (VK_SUCCESS != vkBeginCommandBuffer(command_buffer, &begin_info))
+	VkResult result = vkBeginCommandBuffer(command_buffer, &begin_info);
+	if (VK_SUCCESS != result)
 	{
-		return GAME_FAILURE;
+		platform_log("Fatal: Failed to begin command buffer!\n");
+		assert(result == VK_SUCCESS);
 	}
 
 	VkClearValue clear_color{ {{0.0f, 0.0f, 0.0f, 1.0f}} };
@@ -213,13 +219,12 @@ internal_function bool32 record_command_buffer(VkCommandBuffer command_buffer, u
 
 	vkCmdEndRenderPass(command_buffer);
 
-	if (VK_SUCCESS != vkEndCommandBuffer(command_buffer))
+	result = vkEndCommandBuffer(command_buffer);
+	if (VK_SUCCESS != result)
 	{
-		// TODO: log failure
-		return GAME_FAILURE;
+		platform_log("Fatal: Failed to end command buffer!\n");
+		assert(VK_SUCCESS == result);
 	}
-
-	return GAME_SUCCESS;
 }
 
 void cleanup_swapchain()
@@ -294,7 +299,7 @@ QueueFamilyIndices get_queue_family_indices(VkPhysicalDevice physical_device)
 	return queue_family_indices;
 }
 
-bool32 create_swapchain()
+void create_swapchain()
 {
 	SwapchainDetails swapchain_support = get_swapchain_support_details(context.physical_device);
 	QueueFamilyIndices queue_family_indices = get_queue_family_indices(context.physical_device);
@@ -378,10 +383,10 @@ bool32 create_swapchain()
 	swapchain_info.oldSwapchain = VK_NULL_HANDLE;
 
 	VkResult result = vkCreateSwapchainKHR(context.device, &swapchain_info, 0, &context.swapchain);
-	if (result != VK_SUCCESS)
+	if (VK_SUCCESS != result)
 	{
-		// TODO: log failure
-		return GAME_FAILURE;
+		platform_log("Failed to create swapchain!\n");
+		assert(VK_SUCCESS == result);
 	}
 
 	vkGetSwapchainImagesKHR(context.device, context.swapchain, &min_image_count, 0);
@@ -390,12 +395,9 @@ bool32 create_swapchain()
 
 	context.swapchain_image_format = swapchain_info.imageFormat;
 	context.swapchain_image_extent = swapchain_info.imageExtent;
-
-	// TODO: log success
-	return GAME_SUCCESS;
 }
 
-bool32 create_image_views()
+void create_image_views()
 {
 	context.swapchain_image_views.resize(context.swapchain_images.size());
 
@@ -417,19 +419,15 @@ bool32 create_image_views()
 		image_view_info.subresourceRange.layerCount = 1;
 
 		VkResult result = vkCreateImageView(context.device, &image_view_info, 0, &context.swapchain_image_views[i]);
-		if (result != VK_SUCCESS)
+		if (VK_SUCCESS != result)
 		{
-			// TODO: log failure
-			return GAME_FAILURE;
+			platform_log("Fatal: Failed to create image view!\n");
+			assert(VK_SUCCESS == result);
 		}
-
 	}
-
-	// TODO: log success
-	return GAME_SUCCESS;
 }
 
-bool32 create_framebuffers()
+void create_framebuffers()
 {
 	context.swapchain_framebuffers.resize(context.swapchain_image_views.size());
 
@@ -450,16 +448,12 @@ bool32 create_framebuffers()
 		};
 
 		VkResult result = vkCreateFramebuffer(context.device, &framebuffer_info, 0, &context.swapchain_framebuffers[i]);
-		if (result != VK_SUCCESS)
+		if (VK_SUCCESS != result)
 		{
-			// TODO: log failure
-			return GAME_FAILURE;
+			platform_log("Fatal: Failed to create framebuffer!\n");
+			assert(VK_SUCCESS == result);
 		}
-
 	}
-
-	// TODO: log success
-	return GAME_SUCCESS;
 }
 
 void recreate_swapchain()
@@ -509,8 +503,8 @@ void draw_frame(real64 ms_per_frame, real64 fps, real64 mcpf)
 	}
 	else if (result != VK_SUCCESS)
 	{
-		// TODO: log failure
-		return;
+		platform_log("Fatal: Failed to acquire the next image!\n");
+		assert(VK_SUCCESS == result);
 	}
 
 	update_uniform_buffer(context.current_frame);
@@ -533,12 +527,12 @@ void draw_frame(real64 ms_per_frame, real64 fps, real64 mcpf)
 		.signalSemaphoreCount = 1,
 		.pSignalSemaphores = signal_semaphores
 	};
-	if (VK_SUCCESS != vkQueueSubmit(context.graphics_queue, 1, &submit_info, context.in_flight_fences[context.current_frame]))
+	result = vkQueueSubmit(context.graphics_queue, 1, &submit_info, context.in_flight_fences[context.current_frame]);
+	if (VK_SUCCESS != result)
 	{
-		// TODO: log failure
-		return;
+		platform_log("Fatal: Failed to submit to queue!\n");
+		assert(VK_SUCCESS == result);
 	}
-	// TODO: log success?
 
 	// present the swap chain image
 	VkSwapchainKHR swapchains[] = { context.swapchain };
@@ -558,14 +552,14 @@ void draw_frame(real64 ms_per_frame, real64 fps, real64 mcpf)
 	}
 	else if (result != VK_SUCCESS)
 	{
-		// TODO: log failure
-		return;
+		platform_log("Fatal: Failed to present!\n");
+		assert(VK_SUCCESS == result);
 	}
 
 	context.current_frame = (context.current_frame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
-bool32 find_memory_type(uint32 type_filter, VkMemoryPropertyFlags property_flags, uint32 *index)
+bool find_memory_type(uint32 type_filter, VkMemoryPropertyFlags property_flags, uint32 *index)
 {
 	VkPhysicalDeviceMemoryProperties memory_properties{};
 	vkGetPhysicalDeviceMemoryProperties(context.physical_device, &memory_properties);
@@ -575,14 +569,14 @@ bool32 find_memory_type(uint32 type_filter, VkMemoryPropertyFlags property_flags
 		if ((type_filter & (1 << i)) && (memory_properties.memoryTypes[i].propertyFlags & property_flags) == property_flags)
 		{
 			*index = i;
-			return GAME_SUCCESS;
+			return true;
 		}
 	}
 
-	return GAME_FAILURE;
+	return false;
 }
 
-bool32 create_buffer(VkDeviceSize size, VkBufferUsageFlags usage_flags, VkMemoryPropertyFlags property_flags, VkBuffer &buffer, VkDeviceMemory &memory)
+void create_buffer(VkDeviceSize size, VkBufferUsageFlags usage_flags, VkMemoryPropertyFlags property_flags, VkBuffer &buffer, VkDeviceMemory &memory)
 {
 	VkBufferCreateInfo buffer_info{
 		.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
@@ -594,18 +588,18 @@ bool32 create_buffer(VkDeviceSize size, VkBufferUsageFlags usage_flags, VkMemory
 	VkResult result = vkCreateBuffer(context.device, &buffer_info, 0, &buffer);
 	if (result != VK_SUCCESS)
 	{
-		// TODO: log failure
-		return GAME_FAILURE;
+		platform_log("Fatal: Failed to create buffer!\n");
+		assert(result == VK_SUCCESS);
 	}
 
 	VkMemoryRequirements memory_requirements{};
 	vkGetBufferMemoryRequirements(context.device, buffer, &memory_requirements);
 	uint32 memory_type_index;
-	bool32 res = find_memory_type(memory_requirements.memoryTypeBits, property_flags, &memory_type_index);
-	if (res != GAME_SUCCESS)
+	bool res = find_memory_type(memory_requirements.memoryTypeBits, property_flags, &memory_type_index);
+	if (!res)
 	{
-		// TODO: log failure
-		return GAME_FAILURE;
+		platform_log("Fatal: Failed to find a suitable memory type!\n");
+		assert(result == VK_SUCCESS);
 	}
 	VkMemoryAllocateInfo alloc_info{
 		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
@@ -618,13 +612,11 @@ bool32 create_buffer(VkDeviceSize size, VkBufferUsageFlags usage_flags, VkMemory
 	result = vkAllocateMemory(context.device, &alloc_info, 0, &memory);
 	if (result != VK_SUCCESS)
 	{
-		// TODO: log failure
-		return GAME_FAILURE;
+		platform_log("Fatal: Failed to allocate memory!\n");
+		assert(result == VK_SUCCESS);
 	}
 
 	vkBindBufferMemory(context.device, buffer, memory, 0);
-
-	return GAME_SUCCESS;
 }
 
 VkCommandBuffer begin_single_time_commands()
@@ -692,28 +684,33 @@ void create_image(uint32 width, uint32 height, VkFormat format, VkImageTiling ti
 		.sharingMode = VK_SHARING_MODE_EXCLUSIVE,
 		.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
 	};
-	VkResult result2 = vkCreateImage(context.device, &image_info, 0, &image);
-	if (result2 != VK_SUCCESS)
+	VkResult result = vkCreateImage(context.device, &image_info, 0, &image);
+	if (result != VK_SUCCESS)
 	{
 		platform_log("Failed to create a vulkan image for the texture!\n");
-		return;
+		assert(result == VK_SUCCESS);
 	}
 	VkMemoryRequirements memory_requirements;
 	vkGetImageMemoryRequirements(context.device, image, &memory_requirements);
 
 	uint32_t index;
-	find_memory_type(memory_requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &index);
+	bool res = find_memory_type(memory_requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &index);
+	if (!res)
+	{
+		platform_log("Fatal: Failed to find suitable memory type!\n");
+		assert(res);
+	}
 	VkMemoryAllocateInfo alloc_info{
 		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
 		.allocationSize = memory_requirements.size,
 		.memoryTypeIndex = index,
 	};
 
-	result2 = vkAllocateMemory(context.device, &alloc_info, 0, &image_memory);
-	if (result2 != VK_SUCCESS)
+	result = vkAllocateMemory(context.device, &alloc_info, 0, &image_memory);
+	if (result != VK_SUCCESS)
 	{
 		platform_log("Failed to allocate memory for the vulkan image!\n");
-		return;
+		assert(result == VK_SUCCESS);
 	}
 
 	vkBindImageMemory(context.device, image, image_memory, 0);
@@ -862,7 +859,7 @@ bool32 game_vulkan_init()
 			}
 			else
 			{
-				// TODO: Logging (enable_validation_layers is true but validation layers not supported; continuing without validation layers)
+				platform_log("Validation layers are to be enabled but validation layers are not supported! Continuing without validation layers.\n");
 				instance_info.enabledLayerCount = 0;
 				instance_info.ppEnabledLayerNames = 0;
 
@@ -880,12 +877,12 @@ bool32 game_vulkan_init()
 		instance_info.enabledExtensionCount = (uint32)extensions.size();
 		instance_info.ppEnabledExtensionNames = extensions.data();
 
-		if (vkCreateInstance(&instance_info, 0, &context.instance))
+		VkResult result = vkCreateInstance(&instance_info, 0, &context.instance);
+		if (VK_SUCCESS != result)
 		{
-			// TODO: Logging (Failed to create vulkan instance! Exiting Game!)
+			platform_log("Fatal: Failed to create vulkan instance!\n");
 			return GAME_FAILURE;
 		}
-		// TODO: Logging (successfully created vulkan instance)
 	}
 
 
@@ -901,19 +898,14 @@ bool32 game_vulkan_init()
 			{
 				// successfully loaded
 				VkResult result = createDebugUtilsMessenger(context.instance, &messenger_info, 0, &context.debug_callback);
-
-				if (result == VK_SUCCESS)
+				if (result != VK_SUCCESS)
 				{
-					// TODO: Logging (successfully created debug callback)
-				}
-				else
-				{
-					// TODO: Logging (Failed to create debug callback; proceeding without it)
+					platform_log("Failed to create debug callback! Continuing without validation layers.\n");
 				}
 			}
 			else 
 			{
-				// TODO: Logging (couldn't load vkCreateDebugUtilsMessengerEXT; proceeding without it)
+				platform_log("Failed to load the vkCreateDebugUtilsMessengerEXT function! Continuing without validation layers.\n");
 			}
 		}
 	}
@@ -923,14 +915,9 @@ bool32 game_vulkan_init()
 	// create surface
 	{
 		bool32 result = vulkan_surface_create(context.instance, &context.surface);
-		if (!result)
+		if (result)
 		{
-			// TODO: Logging (successfully created vulkan surface!)
-			
-		}
-		else
-		{
-			// TODO: Logging (failed to create vulkan surface!)
+			platform_log("Fatal: Failed to create vulkan surface!\n");
 			return GAME_FAILURE;
 		}
 	}
@@ -989,8 +976,6 @@ bool32 game_vulkan_init()
 			platform_error_message_window("Error!", "Your device has no suitable Vulkan driver!");
 			return GAME_FAILURE;
 		}
-
-		// TODO: Log the picked physical device
 	}
 
 
@@ -1031,29 +1016,27 @@ bool32 game_vulkan_init()
 		VkResult result = vkCreateDevice(context.physical_device, &device_info, 0, &context.device);
 		if (result != VK_SUCCESS)
 		{
-			// TODO: log failure
+			platform_log("Fatal: Failed to create logical device!\n");
 			return GAME_FAILURE;
 		}
 
 		// get handle to graphics queue; these are the same since we chose a queue family that can do both
 		vkGetDeviceQueue(context.device, queue_family_indices.graphics_family.value(), 0, &context.graphics_queue);
 		vkGetDeviceQueue(context.device, queue_family_indices.present_family.value(), 0, &context.present_queue);
-		
-		// TODO: log success
 	}
 
 
 
 	// create swap chain
 	{
-		bool32 result = create_swapchain();
+		create_swapchain();
 	}
 
 
 
 	// create image views
 	{
-		bool32 result = create_image_views();
+		create_image_views();
 	}
 
 
@@ -1104,11 +1087,9 @@ bool32 game_vulkan_init()
 		VkResult result = vkCreateRenderPass(context.device, &render_pass_info, 0, &context.render_pass);
 		if (result != VK_SUCCESS)
 		{
-			// TODO: log failure
+			platform_log("Fatal: Failed to create render pass!\n");
 			return GAME_FAILURE;
 		}
-
-		// TODO: log success
 	}
 
 	
@@ -1140,11 +1121,9 @@ bool32 game_vulkan_init()
 		VkResult result = vkCreateDescriptorSetLayout(context.device, &layout_info, 0, &context.descriptor_set_layout);
 		if (VK_SUCCESS != result)
 		{
-			// TODO: log failure
+			platform_log("Fatal: Failed to create descriptor set layout!\n");
 			return GAME_FAILURE;
 		}
-		
-		// TODO: log success
 	}
 
 
@@ -1219,19 +1198,6 @@ bool32 game_vulkan_init()
 		input_assembly_info.primitiveRestartEnable = VK_FALSE;
 
 		// NOTE: we are using dynamic state, so we need to specify viewport and scissor at drawing time, instead of here
-		//VkViewport viewport{ 
-		//	.x = 0.0f, 
-		//	.y = 0.0f, 
-		//	.width = context.swapchain_image_extent.width, 
-		//	.height = context.swapchain_image_extent.height, 
-		//	.minDepth = 0.0f, 
-		//	.maxDepth = 1.0f
-		//};
-
-		//VkRect2D scissor{
-		//	.offset = { 0, 0 },
-		//	.extent = context.swapchain_image_extent
-		//};
 
 		VkPipelineViewportStateCreateInfo viewport_info{
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
@@ -1287,10 +1253,9 @@ bool32 game_vulkan_init()
 		VkResult result = vkCreatePipelineLayout(context.device, &pipeline_layout_info, 0, &context.pipeline_layout);
 		if (result != VK_SUCCESS)
 		{
-			// TODO: log failure
+			platform_log("Fatal: Failed to create pipeline layout!\n");
+			return GAME_FAILURE;
 		}
-
-		// TODO: log success
 
 		VkGraphicsPipelineCreateInfo pipeline_info{
 			.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
@@ -1311,11 +1276,9 @@ bool32 game_vulkan_init()
 		result = vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &pipeline_info, 0, &context.graphics_pipeline);
 		if (result != VK_SUCCESS)
 		{
-			// TODO: log failure
+			platform_log("Fatal: Failed to create graphics pipelines!\n");
 			return GAME_FAILURE;
 		}
-
-		// TODO: log success
 
 		vkDestroyShaderModule(context.device, vertex_shader_module, 0);
 		vkDestroyShaderModule(context.device, fragment_shader_module, 0);
@@ -1325,7 +1288,7 @@ bool32 game_vulkan_init()
 
 	// create framebuffers
 	{
-		bool32 result = create_framebuffers();
+		create_framebuffers();
 	}
 
 
@@ -1341,11 +1304,9 @@ bool32 game_vulkan_init()
 		VkResult result = vkCreateCommandPool(context.device, &pool_info, 0, &context.command_pool);
 		if (result != VK_SUCCESS)
 		{
-			// TODO: log failure
+			platform_log("Fatal: Failed to create command pool!\n");
 			return GAME_FAILURE;
 		}
-
-		// TODO: log success
 	}
 
 
@@ -1363,31 +1324,25 @@ bool32 game_vulkan_init()
 		{
 			VkBuffer staging_buffer;
 			VkDeviceMemory staging_buffer_memory;
-			bool32 result = create_buffer(image_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, staging_buffer, staging_buffer_memory);
-			if (result != GAME_SUCCESS)
-			{
-				platform_log("Failed to create staging buffer for texture!\n");
-				stbi_image_free(pixels);
-			}
-			else
-			{
-				void *data;
-				vkMapMemory(context.device, staging_buffer_memory, 0, image_size, 0, &data);
-				memcpy(data, pixels, static_cast<size_t>(image_size));
-				vkUnmapMemory(context.device, staging_buffer_memory);
-				stbi_image_free(pixels);
 
-				create_image(width, height, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, context.texture_image, context.texture_image_memory);
+			create_buffer(image_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, staging_buffer, staging_buffer_memory);
 
-				transition_image_layout(context.texture_image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+			void *data;
+			vkMapMemory(context.device, staging_buffer_memory, 0, image_size, 0, &data);
+			memcpy(data, pixels, static_cast<size_t>(image_size));
+			vkUnmapMemory(context.device, staging_buffer_memory);
+			stbi_image_free(pixels);
 
-				copy_buffer_to_image(staging_buffer, context.texture_image, static_cast<uint32_t>(width), static_cast<uint32_t>(height));
+			create_image(width, height, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, context.texture_image, context.texture_image_memory);
 
-				transition_image_layout(context.texture_image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+			transition_image_layout(context.texture_image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
-				vkDestroyBuffer(context.device, staging_buffer, 0);
-				vkFreeMemory(context.device, staging_buffer_memory, 0);
-			}
+			copy_buffer_to_image(staging_buffer, context.texture_image, static_cast<uint32_t>(width), static_cast<uint32_t>(height));
+
+			transition_image_layout(context.texture_image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+			vkDestroyBuffer(context.device, staging_buffer, 0);
+			vkFreeMemory(context.device, staging_buffer_memory, 0);
 		}
 	}
 
@@ -1405,10 +1360,9 @@ bool32 game_vulkan_init()
 		VkResult result = vkCreateImageView(context.device, &view_info, 0, &context.texture_image_view);
 		if (result != VK_SUCCESS)
 		{
-			// TODO: log failure
+			platform_log("Fatal: Failed to create texture image views!\n");
 			return GAME_FAILURE;
 		}
-		// TODO: log success
 	}
 
 
@@ -1435,10 +1389,9 @@ bool32 game_vulkan_init()
 		VkResult result = vkCreateSampler(context.device, &sampler_info, 0, &context.texture_sampler);
 		if (result != VK_SUCCESS)
 		{
-			// TODO: log failure
+			platform_log("Fatal: Failed to create a sampler!\n");
 			return GAME_FAILURE;
 		}
-		// TODO: log success
 	}
 
 
@@ -1449,26 +1402,15 @@ bool32 game_vulkan_init()
 
 		VkBuffer staging_buffer;
 		VkDeviceMemory staging_buffer_memory;
-		bool32 result = create_buffer(static_cast<uint64_t>(buffer_size), VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, staging_buffer, staging_buffer_memory);
-		if (result != GAME_SUCCESS)
-		{
-			// TODO: log failure
-			return GAME_FAILURE;
-		}
 
-		// TODO: log success
+		create_buffer(static_cast<uint64_t>(buffer_size), VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, staging_buffer, staging_buffer_memory);
 
 		void *data;
 		vkMapMemory(context.device, staging_buffer_memory, 0, static_cast<uint64_t>(buffer_size), 0, &data);
 		memcpy(data, vertices, buffer_size);
 		vkUnmapMemory(context.device, staging_buffer_memory);
 
-		result = create_buffer(static_cast<uint64_t>(buffer_size), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, context.vertex_buffer, context.vertex_buffer_memory);
-		if (result != GAME_SUCCESS)
-		{
-			// TODO: log failure
-			return GAME_FAILURE;
-		}
+		create_buffer(static_cast<uint64_t>(buffer_size), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, context.vertex_buffer, context.vertex_buffer_memory);
 
 		copy_buffer(staging_buffer, context.vertex_buffer, buffer_size);
 
@@ -1484,26 +1426,15 @@ bool32 game_vulkan_init()
 
 		VkBuffer staging_buffer;
 		VkDeviceMemory staging_buffer_memory;
-		bool32 result = create_buffer(static_cast<uint64_t>(buffer_size), VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, staging_buffer, staging_buffer_memory);
-		if (result != GAME_SUCCESS)
-		{
-			// TODO: log failure
-			return GAME_FAILURE;
-		}
 
-		// TODO: log success
+		create_buffer(static_cast<uint64_t>(buffer_size), VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, staging_buffer, staging_buffer_memory);
 
 		void *data;
 		vkMapMemory(context.device, staging_buffer_memory, 0, static_cast<uint64_t>(buffer_size), 0, &data);
 		memcpy(data, indices, buffer_size);
 		vkUnmapMemory(context.device, staging_buffer_memory);
 
-		result = create_buffer(static_cast<uint64_t>(buffer_size), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, context.index_buffer, context.index_buffer_memory);
-		if (result != GAME_SUCCESS)
-		{
-			// TODO: log failure
-			return GAME_FAILURE;
-		}
+		create_buffer(static_cast<uint64_t>(buffer_size), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, context.index_buffer, context.index_buffer_memory);
 
 		copy_buffer(staging_buffer, context.index_buffer, buffer_size);
 
@@ -1518,7 +1449,7 @@ bool32 game_vulkan_init()
 		VkDeviceSize buffer_size = sizeof(Uniform_Buffer_Object);
 		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
 		{
-			bool32 result = create_buffer(buffer_size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, context.uniform_buffers[i], context.uniform_buffers_memory[i]);
+			create_buffer(buffer_size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, context.uniform_buffers[i], context.uniform_buffers_memory[i]);
 
 			vkMapMemory(context.device, context.uniform_buffers_memory[i], 0, buffer_size, 0, &context.uniform_buffers_mapped[i]);
 		}
@@ -1549,11 +1480,9 @@ bool32 game_vulkan_init()
 		VkResult result = vkCreateDescriptorPool(context.device, &pool_info, 0, &context.descriptor_pool);
 		if (VK_SUCCESS != result)
 		{
-			// TODO: log failure
+			platform_log("Fatal: Failed to create descriptor pool!\n");
 			return GAME_FAILURE;
 		}
-
-		// TODO: log success
 	}
 
 
@@ -1575,7 +1504,7 @@ bool32 game_vulkan_init()
 		VkResult result = vkAllocateDescriptorSets(context.device, &alloc_info, context.descriptor_sets);
 		if (VK_SUCCESS != result)
 		{
-			// TODO: log failure
+			platform_log("Fatal: Failed to allocate descriptor sets!\n");
 			return GAME_FAILURE;
 		}
 
@@ -1631,11 +1560,9 @@ bool32 game_vulkan_init()
 		VkResult result = vkAllocateCommandBuffers(context.device, &allocate_info, context.command_buffers.data());
 		if (result != VK_SUCCESS)
 		{
-			// TODO: log failure
+			platform_log("Fatal: Failed to allocate command buffers!\n");
 			return GAME_FAILURE;
 		}
-
-		// TODO: log success
 	}
 
 
@@ -1661,12 +1588,10 @@ bool32 game_vulkan_init()
 				VK_SUCCESS != vkCreateSemaphore(context.device, &semaphore_info, 0, &context.render_finished_semaphores[i]) ||
 				VK_SUCCESS != vkCreateFence(context.device, &fence_info, 0, &context.in_flight_fences[i]))
 			{
-				// TODO: log failure
+				platform_log("Fatal: Failed to create synchronization objects!\n");
 				return GAME_FAILURE;
 			}
 		}
-
-		// TODO: log success
 	}
 
 	return GAME_SUCCESS;
