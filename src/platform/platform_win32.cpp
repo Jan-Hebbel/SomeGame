@@ -305,7 +305,13 @@ main_window_callback(HWND w_handle, UINT message, WPARAM wparam, LPARAM lparam)
 	{
 		case WM_SIZE:
 		{
+			static int i = 0;
+			if (i > 0)
+			{
+				if (wparam == SIZE_RESTORED) game_render(0.0f, 0.0f, 0.0f);
+			}
 			window_dimensions = { LOWORD(lparam), HIWORD(lparam) };
+			++i;
 		} break;
 
 		case WM_CLOSE:
@@ -452,7 +458,7 @@ internal_function void platform_create_window(const char *title, int width, int 
 internal_function void platform_process_events()
 {
 	MSG message;
-	while (PeekMessage(&message, 0, 0, 0, PM_REMOVE))
+	while (PeekMessage(&message, 0, 0, 0, PM_REMOVE)) 
 	{
 		if (message.message == WM_QUIT)
 		{

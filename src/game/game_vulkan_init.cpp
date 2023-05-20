@@ -487,23 +487,30 @@ void update_uniform_buffer(uint32_t current_image)
 	memcpy(context.uniform_buffers_mapped[current_image], &ubo, sizeof(ubo));
 }
 
-bool32 draw_frame(real64 ms_per_frame, real64 fps, real64 mcpf)
+void draw_frame(real64 ms_per_frame, real64 fps, real64 mcpf)
 {
 	// wait for the previous frame to finish
 	vkWaitForFences(context.device, 1, &context.in_flight_fences[context.current_frame], VK_TRUE, UINT64_MAX);
 	vkResetFences(context.device, 1, &context.in_flight_fences[context.current_frame]);
+
+	static bool swapchain_outdated = false;
+	if (swapchain_outdated)
+	{
+		recreate_swapchain();
+	}
 
 	// acquire an image from the swapchain
 	uint32 image_index;
 	VkResult result = vkAcquireNextImageKHR(context.device, context.swapchain, UINT64_MAX, context.image_available_semaphores[context.current_frame], VK_NULL_HANDLE, &image_index);
 	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
 	{
-		return 2;
+		swapchain_outdated = true;
+		return;
 	}
 	else if (result != VK_SUCCESS)
 	{
 		// TODO: log failure
-		return GAME_FAILURE;
+		return;
 	}
 
 	update_uniform_buffer(context.current_frame);
@@ -529,7 +536,7 @@ bool32 draw_frame(real64 ms_per_frame, real64 fps, real64 mcpf)
 	if (VK_SUCCESS != vkQueueSubmit(context.graphics_queue, 1, &submit_info, context.in_flight_fences[context.current_frame]))
 	{
 		// TODO: log failure
-		return GAME_FAILURE;
+		return;
 	}
 	// TODO: log success?
 
@@ -546,22 +553,16 @@ bool32 draw_frame(real64 ms_per_frame, real64 fps, real64 mcpf)
 	result = vkQueuePresentKHR(context.present_queue, &present_info);
 	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
 	{
-		return 2;
+		swapchain_outdated = true;
+		return;
 	}
 	else if (result != VK_SUCCESS)
 	{
-		return GAME_FAILURE;
+		// TODO: log failure
+		return;
 	}
 
-	// draw performance metrics
-	stbtt_aligned_quad aligned_quad;
-	float x = 5, y = 5;
-	stbtt_GetBakedQuad(data, 1024, 1024, 'F' - 32, &x, &y, &aligned_quad, true);
-	// TODO: now give vulkan this quad and render it
-
 	context.current_frame = (context.current_frame + 1) % MAX_FRAMES_IN_FLIGHT;
-
-	return GAME_SUCCESS;
 }
 
 bool32 find_memory_type(uint32 type_filter, VkMemoryPropertyFlags property_flags, uint32 *index)
