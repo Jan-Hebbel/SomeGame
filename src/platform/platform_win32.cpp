@@ -472,10 +472,26 @@ internal_function void platform_process_events()
 	}
 }
 
+uint32 platform_get_file_size(const char *file_path) {
+	HANDLE handle = CreateFileA(file_path, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	uint32 file_size = GetFileSize(handle, NULL);
+	CloseHandle(handle);
+	return file_size;
+}
+
 int CALLBACK WinMain(_In_ HINSTANCE h_instance, _In_opt_ HINSTANCE h_prev_instance, _In_ PSTR cmd_line, _In_ int cmdshow)
 {
 #ifdef _DEBUG
 	platform_logging_init();
+#endif
+
+#if 0
+	Game_Memory game_memory = {};
+	game_memory.permanent_storage_size = 64LL * 1024 * 1024;  // 64 MB
+	game_memory.transient_storage_size = 512LL * 1024 * 1024; // 512 MB
+	uint64 total_size = game_memory.permanent_storage_size + game_memory.transient_storage_size;
+	game_memory.permanent_storage = VirtualAlloc(0, total_size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+	game_memory.transient_storage = (uint8 *)game_memory.permanent_storage + game_memory.permanent_storage_size;
 #endif
 
 	LARGE_INTEGER perf_count_frequency_result;

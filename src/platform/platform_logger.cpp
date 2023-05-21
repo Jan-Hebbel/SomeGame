@@ -26,6 +26,7 @@ void platform_log(const char *message, ...)
 
 	if (output_handle == 0) return;
 	WriteConsole(output_handle, out_message, size - 1, 0, 0);
+	delete[] out_message;
 }
 
 void platform_logging_free()

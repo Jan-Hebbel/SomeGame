@@ -3,6 +3,17 @@
 
 #include "types.hpp"
 
+struct Game_State {
+
+};
+
+struct Game_Memory {
+	uint64 permanent_storage_size;
+	void *permanent_storage;
+	uint64 transient_storage_size;
+	void *transient_storage;
+};
+
 //
 // NOTE: Services that the game provides
 //

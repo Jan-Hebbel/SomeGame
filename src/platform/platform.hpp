@@ -7,19 +7,11 @@
 // NOTE: Functions that the platform layer provides
 //
 
-// get window handles
 void *platform_get_window_handles();
-
-// get window width and height
 void platform_get_window_dimensions(uint *width, uint *height);
-
-// takes in a path to a .wav file and plays it
 void platform_audio_play_file(const char *file_path);
-
-// log to console
 void platform_log(const char *message, ...);
-
-// display small error window with a message to the user
 void platform_error_message_window(const char *title, const char *message);
+uint32 platform_get_file_size(const char *file_path);
 
 #endif

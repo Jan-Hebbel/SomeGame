@@ -150,24 +150,19 @@ VKAPI_ATTR VkBool32 VKAPI_CALL vulkan_debug_callback(VkDebugUtilsMessageSeverity
 	return VK_FALSE;
 }
 
-internal_function size_t read_file(const std::string &filename, char **buffer)
+internal_function bool read_file(const std::string &filename, uint32 file_size, char *buffer)
 {
-	*buffer = NULL;
+	if (!buffer) return false;
 
-	std::ifstream file(filename, std::ios::ate | std::ios::binary);
+	std::ifstream file(filename, std::ios::binary);
 	if (!file.is_open())
 	{
-		return 0;
+		return false;
 	}
-
-	size_t file_size = (size_t)file.tellg();
-	*buffer = (char *)malloc(sizeof(char) * file_size);
-	if (!*buffer) return 0;
-	file.seekg(0);
-	file.read(*buffer, file_size);
+	file.read(buffer, file_size);
 	file.close();
 
-	return file_size;
+	return true;
 }
 
 // TODO: load "res/fonts/SourceCodePro-Regular.ttf"
@@ -798,6 +793,32 @@ void copy_buffer_to_image(VkBuffer buffer, VkImage image, uint32 width, uint32 h
 	end_single_time_commands(command_buffer);
 }
 
+internal_function bool32 create_shader_module(const char *shader_file, VkShaderModule *shader_module)
+{
+	uint32 size = platform_get_file_size(shader_file);
+	char *shader_code = new char[size];
+	bool read_success = read_file(shader_file, size, shader_code);
+	if (!read_success)
+	{
+		return GAME_FAILURE;
+	}
+
+	VkShaderModuleCreateInfo shader_module_info{
+		.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+		.codeSize = size,
+		.pCode = reinterpret_cast<const uint32_t *>(shader_code),
+	};
+
+	VkResult result = vkCreateShaderModule(context.device, &shader_module_info, 0, shader_module);
+	delete[] shader_code;
+	if (VK_SUCCESS != result)
+	{
+		return GAME_FAILURE;
+	}
+
+	return GAME_SUCCESS;
+}
+
 bool32 game_vulkan_init()
 {
 	// debug callback: which messages are filtered and which are not
@@ -1199,48 +1220,29 @@ bool32 game_vulkan_init()
 
 	// create graphics pipeline
 	{
-		char *vert_shader_code;
-		size_t vert_shader_code_size = read_file("res/shaders/vert.spv", &vert_shader_code);
-		char *frag_shader_code;
-		size_t frag_shader_code_size = read_file("res/shaders/frag.spv", &frag_shader_code);
+		bool32 shader_created = GAME_FAILURE;
 
-		// wrap vertex shader code in VkShaderModule object
-		VkShaderModuleCreateInfo vertex_shader_module_info{};
-		vertex_shader_module_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-		vertex_shader_module_info.codeSize = vert_shader_code_size;
-		vertex_shader_module_info.pCode = reinterpret_cast<const uint32_t *>(vert_shader_code);
-
-		VkShaderModule vertex_shader_module;
-		VkResult result = vkCreateShaderModule(context.device, &vertex_shader_module_info, 0, &vertex_shader_module);
-		if (VK_SUCCESS != result)
+		VkShaderModule vertex_shader_module = {}; 
+		shader_created = create_shader_module("res/shaders/vert.spv", &vertex_shader_module);
+		if (shader_created != GAME_SUCCESS)
 		{
-			platform_log("Fatal: Failed to create a shader module with the vertex shader code!\n");
+			platform_log("Fatal: Failed to create a vertex shader module!\n");
 			return GAME_FAILURE;
 		}
 
-		free(vert_shader_code);
-
-		VkShaderModuleCreateInfo fragment_shader_module_info{};
-		fragment_shader_module_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-		fragment_shader_module_info.codeSize = frag_shader_code_size;
-		fragment_shader_module_info.pCode = reinterpret_cast<const uint32_t *>(frag_shader_code);
-
-		VkShaderModule fragment_shader_module;
-		result = vkCreateShaderModule(context.device, &fragment_shader_module_info, 0, &fragment_shader_module);
-		if (VK_SUCCESS != result)
-		{
-			platform_log("Fatal: Failed to create a shader module with the fragment shader code!\n");
-			return GAME_FAILURE;
-		}
-
-		free(frag_shader_code);
-
-		// Do something with the shader modules
 		VkPipelineShaderStageCreateInfo vert_shader_stage_info{};
 		vert_shader_stage_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 		vert_shader_stage_info.stage = VK_SHADER_STAGE_VERTEX_BIT;
 		vert_shader_stage_info.module = vertex_shader_module;
 		vert_shader_stage_info.pName = "main";
+
+		VkShaderModule fragment_shader_module = {};
+		shader_created = create_shader_module("res/shaders/frag.spv", &fragment_shader_module);
+		if (shader_created != GAME_SUCCESS)
+		{
+			platform_log("Fatal: Failed to create a vertex shader module!\n");
+			return GAME_FAILURE;
+		}
 
 		VkPipelineShaderStageCreateInfo frag_shader_stage_info{};
 		frag_shader_stage_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -1335,7 +1337,7 @@ bool32 game_vulkan_init()
 			.pSetLayouts = &context.descriptor_set_layout,
 		};
 
-		result = vkCreatePipelineLayout(context.device, &pipeline_layout_info, 0, &context.pipeline_layout);
+		VkResult result = vkCreatePipelineLayout(context.device, &pipeline_layout_info, 0, &context.pipeline_layout);
 		if (result != VK_SUCCESS)
 		{
 			platform_log("Fatal: Failed to create pipeline layout!\n");

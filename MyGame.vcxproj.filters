@@ -41,9 +41,6 @@
     <ClInclude Include="src\types.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\game\game_vulkan.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="src\platform\platform_logger.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
