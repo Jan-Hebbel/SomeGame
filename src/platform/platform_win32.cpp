@@ -50,7 +50,7 @@ struct Win32SoundOutput
 constexpr uint WIDTH = 1440;
 constexpr uint HEIGHT = 810;
 
-global_variable bool32 should_close = 1;
+global_variable bool should_close = true;
 global_variable Win32SoundOutput sound_device{};
 global_variable Win32WindowHandles window_handles{};
 global_variable Win32WindowDimensions window_dimensions = { WIDTH, HEIGHT };
@@ -489,8 +489,6 @@ int CALLBACK WinMain(_In_ HINSTANCE h_instance, _In_opt_ HINSTANCE h_prev_instan
 	// TODO: remove this
 	platform_audio_play_file("res/audio/test.wav");
 
-	game_load_font_to_bitmap("res/fonts/SourceCodePro-Regular.ttf");
-
 	bool32 result_vulkan_init = game_vulkan_init();
 	if (result_vulkan_init != GAME_SUCCESS)
 	{
@@ -498,7 +496,7 @@ int CALLBACK WinMain(_In_ HINSTANCE h_instance, _In_opt_ HINSTANCE h_prev_instan
 		assert(result_vulkan_init == GAME_SUCCESS);
 	}
 	
-	should_close = 0;
+	should_close = false;
 
 	LARGE_INTEGER last_counter;
 	QueryPerformanceCounter(&last_counter);

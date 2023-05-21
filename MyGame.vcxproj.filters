@@ -27,9 +27,6 @@
     <ClCompile Include="src\game\game_vulkan_init.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\game\game_vulkan_surface_win32.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="src\platform\platform_logger.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -50,7 +47,7 @@
     <ClInclude Include="src\platform\platform_logger.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\game\game_vulkan_internal.hpp">
+    <ClInclude Include="src\game\game_internal.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\lib\stb_truetype.h">

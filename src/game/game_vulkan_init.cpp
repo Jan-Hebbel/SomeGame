@@ -13,21 +13,25 @@
 
 #include "types.hpp"
 #include "math/math.hpp"
-#include "game/game_vulkan.hpp"
-#include "game/game_vulkan_internal.hpp"
+#include "game/game_internal.hpp"
 #include "platform/platform.hpp"
 
-// TODO: other operating systems
-#ifdef PLATFORM_WINDOWS
-// TODO: this cpp file includes windows.h; maybe there is another way of getting things up and running without including windows.h in this file
-#include "game/game_vulkan_surface_win32.cpp"
-#endif
-
-#include <vulkan/vulkan.h>
 #define STB_TRUETYPE_IMPLEMENTATION
 #include <lib/stb_truetype.h>
 #define STB_IMAGE_IMPLEMENTATION
 #include <lib/stb_image.h>
+
+#if defined PLATFORM_WINDOWS
+#define VK_USE_PLATFORM_WIN32_KHR
+#elif defined PLATFORM_LINUX
+// TODO: support linux
+#elif defined PLATFORM_MACOS
+// TODO: support macos
+#else 
+#error Unsupported Operating System!
+#endif
+#include <vulkan/vulkan.h>
+#include <windows.h>
 
 #include <vector>
 #include <string>
@@ -49,6 +53,12 @@ constexpr bool enable_validation_layers = false;
 #endif
 
 global_variable constexpr uint MAX_FRAMES_IN_FLIGHT = 2;
+
+struct Win32WindowHandles
+{
+	HINSTANCE hinstance;
+	HWND hwnd;
+};
 
 struct GameVulkanContext
 {
@@ -828,6 +838,13 @@ bool32 game_vulkan_init()
 		};
 		const uint32 layer_count = sizeof(layers) / sizeof(layers[0]);
 
+		const char *extensions[] = {
+			VK_KHR_SURFACE_EXTENSION_NAME,
+			VK_KHR_WIN32_SURFACE_EXTENSION_NAME,
+			VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
+		};
+		uint32_t extension_count = 2;
+
 		if (enable_validation_layers)
 		{
 			// check layer support
@@ -926,10 +943,17 @@ bool32 game_vulkan_init()
 
 	// create surface
 	{
-		bool32 result = vulkan_surface_create(context.instance, &context.surface);
-		if (result)
+		Win32WindowHandles *p_window_handles = (Win32WindowHandles *)platform_get_window_handles();
+
+		VkWin32SurfaceCreateInfoKHR surface_info{};
+		surface_info.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
+		surface_info.hinstance = p_window_handles->hinstance;
+		surface_info.hwnd = p_window_handles->hwnd;
+
+		VkResult result = vkCreateWin32SurfaceKHR(context.instance, &surface_info, 0, &context.surface);
+		if (result != VK_SUCCESS)
 		{
-			platform_log("Fatal: Failed to create vulkan surface!\n");
+			platform_log("Fatal: Failed to create a win32 surface!\n");
 			return GAME_FAILURE;
 		}
 	}

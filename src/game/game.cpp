@@ -1,7 +1,7 @@
 #include "game/game.hpp"
 
 #include "types.hpp"
-#include "game/game_vulkan_internal.hpp"
+#include "game/game_internal.hpp"
 #include "platform/platform.hpp"
 
 void game_update()
