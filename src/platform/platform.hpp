@@ -3,9 +3,9 @@
 
 #include "types.hpp"
 
-/*
-	NOTE: Functions that the platform layer provides
-*/
+//
+// NOTE: Functions that the platform layer provides
+//
 
 // get window handles
 void *platform_get_window_handles();

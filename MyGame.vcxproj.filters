@@ -53,7 +53,7 @@
     <ClInclude Include="src\lib\stb_truetype.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\math\math.hpp">
+    <ClInclude Include="src\math.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\lib\stb_image.h">

@@ -12,7 +12,7 @@
 #include "game/game.hpp"
 
 #include "types.hpp"
-#include "math/math.hpp"
+#include "math.hpp"
 #include "game/game_internal.hpp"
 #include "platform/platform.hpp"
 
@@ -22,16 +22,21 @@
 #include <lib/stb_image.h>
 
 #if defined PLATFORM_WINDOWS
-#define VK_USE_PLATFORM_WIN32_KHR
+	#define VK_USE_PLATFORM_WIN32_KHR
+	#include <windows.h>
+	struct WindowHandles
+	{
+		HINSTANCE hinstance;
+		HWND hwnd;
+	};
 #elif defined PLATFORM_LINUX
-// TODO: support linux
+	// TODO: support linux
 #elif defined PLATFORM_MACOS
-// TODO: support macos
+	// TODO: support macos
 #else 
-#error Unsupported Operating System!
+	#error Unsupported Operating System!
 #endif
 #include <vulkan/vulkan.h>
-#include <windows.h>
 
 #include <vector>
 #include <string>
@@ -53,12 +58,6 @@ constexpr bool enable_validation_layers = false;
 #endif
 
 global_variable constexpr uint MAX_FRAMES_IN_FLIGHT = 2;
-
-struct Win32WindowHandles
-{
-	HINSTANCE hinstance;
-	HWND hwnd;
-};
 
 struct GameVulkanContext
 {
@@ -943,12 +942,12 @@ bool32 game_vulkan_init()
 
 	// create surface
 	{
-		Win32WindowHandles *p_window_handles = (Win32WindowHandles *)platform_get_window_handles();
+		WindowHandles *window_handles = (WindowHandles *)platform_get_window_handles();
 
 		VkWin32SurfaceCreateInfoKHR surface_info{};
 		surface_info.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
-		surface_info.hinstance = p_window_handles->hinstance;
-		surface_info.hwnd = p_window_handles->hwnd;
+		surface_info.hinstance = window_handles->hinstance;
+		surface_info.hwnd = window_handles->hwnd;
 
 		VkResult result = vkCreateWin32SurfaceKHR(context.instance, &surface_info, 0, &context.surface);
 		if (result != VK_SUCCESS)

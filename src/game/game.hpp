@@ -3,9 +3,9 @@
 
 #include "types.hpp"
 
-/*
-    NOTE: Services that the game provides
-*/
+//
+// NOTE: Services that the game provides
+//
 
 bool32 game_vulkan_init();
 void game_vulkan_cleanup();
