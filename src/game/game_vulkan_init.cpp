@@ -3,6 +3,7 @@
 	TODO:
 	* memory arena
 	* display text to screen
+		* load font with platform_load_file(...)
 	* free everything 
 	* take care of @Performance tags
 */
@@ -148,34 +149,6 @@ VKAPI_ATTR VkBool32 VKAPI_CALL vulkan_debug_callback(VkDebugUtilsMessageSeverity
 	platform_log("%s\n", p_callback_data->pMessage);
 
 	return VK_FALSE;
-}
-
-internal_function bool read_file(const std::string &filename, uint32 file_size, char *buffer)
-{
-	if (!buffer) return false;
-
-	std::ifstream file(filename, std::ios::binary);
-	if (!file.is_open())
-	{
-		return false;
-	}
-	file.read(buffer, file_size);
-	file.close();
-
-	return true;
-}
-
-// TODO: load "res/fonts/SourceCodePro-Regular.ttf"
-void game_load_font_to_bitmap(const char *file_path)
-{
-	// NOTE: stbtt_BakeFontBitmap expects unsigned char, possible error?
-	FILE *file = fopen(file_path, "rb");
-	if (!file) return;
-
-	size_t chars_read = fread(ttf_buffer, 1, 1 << 20, file);
-	stbtt_BakeFontBitmap(ttf_buffer, 0, 16.0f, font_bitmap, 1024, 1024, 32, 96, data);
-
-	fclose(file);
 }
 
 internal_function void record_command_buffer(VkCommandBuffer command_buffer, uint32 image_index)
@@ -487,7 +460,7 @@ void recreate_swapchain()
 // NOTE: most efficient way to pass a frequently changing small amount of data to the shader are push constants @Performance
 void update_uniform_buffer(uint32_t current_image)
 {
-	float scale = 2.0f;
+	float scale = 6.0f;
 	float aspect = (float)context.swapchain_image_extent.width / (float)context.swapchain_image_extent.height;
 	Uniform_Buffer_Object ubo{
 		.model = identity(),
@@ -795,10 +768,9 @@ void copy_buffer_to_image(VkBuffer buffer, VkImage image, uint32 width, uint32 h
 
 internal_function bool32 create_shader_module(const char *shader_file, VkShaderModule *shader_module)
 {
-	uint32 size = platform_get_file_size(shader_file);
-	char *shader_code = new char[size];
-	bool read_success = read_file(shader_file, size, shader_code);
-	if (!read_success)
+	uint32 size;
+	File_Asset *shader_code = platform_read_file(shader_file, &size);
+	if (!shader_code)
 	{
 		return GAME_FAILURE;
 	}
@@ -810,7 +782,7 @@ internal_function bool32 create_shader_module(const char *shader_file, VkShaderM
 	};
 
 	VkResult result = vkCreateShaderModule(context.device, &shader_module_info, 0, shader_module);
-	delete[] shader_code;
+	platform_free_file(shader_code);
 	if (VK_SUCCESS != result)
 	{
 		return GAME_FAILURE;

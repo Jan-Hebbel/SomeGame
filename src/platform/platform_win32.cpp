@@ -78,7 +78,7 @@ internal_function HRESULT find_chunk(HANDLE hfile, DWORD fourcc, DWORD &dw_chunk
 	HRESULT hr = S_OK;
 	if (INVALID_SET_FILE_POINTER == SetFilePointer(hfile, 0, NULL, FILE_BEGIN))
 	{
-		//TODO: Logging
+		platform_log("Warning: Invalid set file pointer in find_chunk!\n");
 		return HRESULT_FROM_WIN32(GetLastError());
 	}
 
@@ -94,13 +94,11 @@ internal_function HRESULT find_chunk(HANDLE hfile, DWORD fourcc, DWORD &dw_chunk
 		DWORD dw_read;
 		if (ReadFile(hfile, &dw_chunk_type, sizeof(DWORD), &dw_read, NULL) == 0)
 		{
-			//TODO: Logging
 			hr = HRESULT_FROM_WIN32(GetLastError());
 		}
 
 		if (ReadFile(hfile, &dw_chunk_data_size, sizeof(DWORD), &dw_read, NULL) == 0)
 		{
-			//TODO: Logging
 			hr = HRESULT_FROM_WIN32(GetLastError());
 		}
 
@@ -112,7 +110,6 @@ internal_function HRESULT find_chunk(HANDLE hfile, DWORD fourcc, DWORD &dw_chunk
 				dw_chunk_data_size = 4;
 				if (ReadFile(hfile, &dw_file_type, sizeof(DWORD), &dw_read, NULL) == 0)
 				{
-					//TODO: Logging
 					hr = HRESULT_FROM_WIN32(GetLastError());
 				}
 			} break;
@@ -121,7 +118,6 @@ internal_function HRESULT find_chunk(HANDLE hfile, DWORD fourcc, DWORD &dw_chunk
 			{
 				if (INVALID_SET_FILE_POINTER == SetFilePointer(hfile, dw_chunk_data_size, NULL, FILE_CURRENT))
 				{
-					//TODO: Logging
 					return HRESULT_FROM_WIN32(GetLastError());
 				}
 			}
@@ -149,13 +145,11 @@ internal_function HRESULT read_chunk_data(HANDLE hfile, void *buffer, DWORD buff
 	HRESULT hr = S_OK;
 	if (INVALID_SET_FILE_POINTER == SetFilePointer(hfile, buffer_offset, NULL, FILE_BEGIN))
 	{
-		//TODO: Logging
 		return HRESULT_FROM_WIN32(GetLastError());
 	}
 	DWORD dw_read;
 	if (ReadFile(hfile, buffer, buffer_size, &dw_read, NULL) == 0)
 	{
-		//TODO: Logging
 		hr = HRESULT_FROM_WIN32(GetLastError());
 	}
 	return hr;
@@ -298,8 +292,7 @@ void platform_error_message_window(const char *title, const char *message)
 	MessageBoxA(window_handles.hwnd, message, title, MB_OK | MB_ICONERROR);
 }
 
-LRESULT CALLBACK
-main_window_callback(HWND w_handle, UINT message, WPARAM wparam, LPARAM lparam)
+LRESULT CALLBACK main_window_callback(HWND w_handle, UINT message, WPARAM wparam, LPARAM lparam)
 {
 	LRESULT result = 0;
 
@@ -472,11 +465,46 @@ internal_function void platform_process_events()
 	}
 }
 
-uint32 platform_get_file_size(const char *file_path) {
-	HANDLE handle = CreateFileA(file_path, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-	uint32 file_size = GetFileSize(handle, NULL);
-	CloseHandle(handle);
-	return file_size;
+File_Asset *platform_read_file(const char *file_path, uint32 *bytes_read)
+{
+	// open file
+	HANDLE file_handle = CreateFileA(file_path, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (file_handle == INVALID_HANDLE_VALUE) return NULL;
+
+	// get file size
+	LARGE_INTEGER large_integer = {};
+	if (!GetFileSizeEx(file_handle, &large_integer)) {
+		CloseHandle(file_handle);
+		return NULL;
+	}
+	if (large_integer.u.HighPart > 0) { 
+		CloseHandle(file_handle);
+		return NULL; 
+	}
+	uint32 file_size = large_integer.u.LowPart;
+
+	// allocate buffer
+	File_Asset *file = new File_Asset[file_size];
+
+	// read file to buffer
+	uint32 number_of_bytes_read;
+	if (!ReadFile(file_handle, file, file_size, (DWORD*)&number_of_bytes_read, NULL)) {
+		delete[] file;
+		CloseHandle(file_handle);
+		return NULL;
+	}
+
+	if (bytes_read != NULL) *bytes_read = number_of_bytes_read;
+
+	// close file
+	CloseHandle(file_handle);
+
+	return file;
+}
+
+void platform_free_file(File_Asset *file)
+{
+	delete[] file;
 }
 
 int CALLBACK WinMain(_In_ HINSTANCE h_instance, _In_opt_ HINSTANCE h_prev_instance, _In_ PSTR cmd_line, _In_ int cmdshow)
