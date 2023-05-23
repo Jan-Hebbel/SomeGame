@@ -7,6 +7,18 @@ struct Vec2
 	float y;
 };
 
+struct Vec3
+{
+	float x;
+	float y;
+	float z;
+};
+
+struct Mat4
+{
+	float e[4][4];
+};
+
 inline Vec2 operator-(Vec2 v)
 {
 	Vec2 result;
@@ -38,13 +50,6 @@ inline Vec2 operator*(float s, Vec2 v)
 	result.y = s * v.y;
 	return result;
 }
-
-struct Vec3
-{
-	float x;
-	float y;
-	float z;
-};
 
 inline Vec3 operator-(Vec3 v)
 {
@@ -82,10 +87,12 @@ inline Vec3 operator*(float s, Vec3 v)
 	return result;
 }
 
-struct Mat4
-{
-	float e[4][4];
-};
+Mat4 operator*(Mat4 a, Mat4 b);
+Mat4 identity();
+Mat4 orthographic_projection(float l, float r, float b, float t, float n, float f);
+Mat4 transpose(Mat4 m);
+
+#ifdef MATH_H_IMPLEMENTATION
 
 Mat4 operator*(Mat4 a, Mat4 b)
 {
@@ -146,5 +153,7 @@ Mat4 transpose(Mat4 m)
 	}
 	return r;
 }
+
+#endif
 
 #endif

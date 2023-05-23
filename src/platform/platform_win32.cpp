@@ -540,6 +540,8 @@ int CALLBACK WinMain(_In_ HINSTANCE h_instance, _In_opt_ HINSTANCE h_prev_instan
 		assert(result_vulkan_init == GAME_SUCCESS);
 	}
 	
+	Game_State game_state = {};
+
 	should_close = false;
 
 	LARGE_INTEGER last_counter;
@@ -556,7 +558,7 @@ int CALLBACK WinMain(_In_ HINSTANCE h_instance, _In_opt_ HINSTANCE h_prev_instan
 		static real64 mcpf;
 
 		// update game and render
-		game_update();
+		game_update(&game_state);
 		if (window_dimensions.width != 0 && window_dimensions.height != 0)
 		{
 			game_render(ms_per_frame, fps, mcpf);
