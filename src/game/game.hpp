@@ -2,6 +2,7 @@
 #define GAME_H
 
 #include "types.hpp"
+#include "math.hpp"
 
 struct Game_State {
 	

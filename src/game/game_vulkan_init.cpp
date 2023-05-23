@@ -10,10 +10,9 @@
 
 #define _CRT_SECURE_NO_WARNINGS
 
-#include "game/game.hpp"
-
 #include "types.hpp"
 #include "math.hpp"
+#include "game/game.hpp"
 #include "game/game_internal.hpp"
 #include "platform/platform.hpp"
 

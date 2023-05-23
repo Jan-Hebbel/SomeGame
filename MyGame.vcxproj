@@ -98,6 +98,7 @@
   <ItemGroup>
     <ClCompile Include="src\game\game.cpp" />
     <ClCompile Include="src\game\game_vulkan_init.cpp" />
+    <ClCompile Include="src\math.cpp" />
     <ClCompile Include="src\platform\platform_linux.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
