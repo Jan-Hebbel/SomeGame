@@ -35,25 +35,46 @@ struct Win32WindowHandles
 	HWND hwnd;
 };
 
-struct Win32WindowDimensions
+struct Window_Dimensions
 {
 	uint width;
 	uint height;
 };
 
-struct Win32SoundOutput
+struct Win32_Audio_Device
 {
-	IXAudio2 *p_xaudio2;
-	BYTE *p_data_buffer;
+	IXAudio2 *xaudio2;
+	BYTE *data_buffer;
+};
+
+class Voice_Callback : public IXAudio2VoiceCallback
+{
+public:
+	HANDLE hBufferEndEvent;
+	Voice_Callback() : hBufferEndEvent(CreateEvent(NULL, FALSE, FALSE, NULL)) {}
+	~Voice_Callback() { CloseHandle(hBufferEndEvent); }
+
+	//Called when the voice has just finished playing a contiguous audio stream.
+	void OnStreamEnd() { SetEvent(hBufferEndEvent); }
+
+	//Unused methods are stubs
+	void OnVoiceProcessingPassEnd() {}
+	void OnVoiceProcessingPassStart(UINT32 SamplesRequired) {}
+	void OnBufferEnd(void *pBufferContext) {
+		delete[] pBufferContext;
+	}
+	void OnBufferStart(void *pBufferContext) {}
+	void OnLoopEnd(void *pBufferContext) {}
+	void OnVoiceError(void *pBufferContext, HRESULT Error) {}
 };
 
 constexpr uint WIDTH = 1440;
 constexpr uint HEIGHT = 810;
 
 global_variable bool should_close = true;
-global_variable Win32SoundOutput sound_device{};
-global_variable Win32WindowHandles window_handles{};
-global_variable Win32WindowDimensions window_dimensions = { WIDTH, HEIGHT };
+global_variable Win32_Audio_Device audio_device = {};
+global_variable Win32WindowHandles window_handles = {};
+global_variable Window_Dimensions window_dimensions = { WIDTH, HEIGHT };
 global_variable Game_State game_state = { {0.0f, 0.0f} };
 
 // big endian
@@ -156,42 +177,31 @@ internal_function HRESULT read_chunk_data(HANDLE hfile, void *buffer, DWORD buff
 	return hr;
 }
 
-
-internal_function void platform_create_sound_device()
+internal_function bool32 platform_create_audio_device()
 {
-	// ------ initialize XAudio2 ------
 	// initialize the COM library, sets the threads concurrency model
 	HRESULT hresult = CoInitializeEx(NULL, COINIT_MULTITHREADED);
 	if (FAILED(hresult))
 	{
-		//TODO: Logging
-		return;
+		return GAME_FAILURE;
 	}
 
 	// create an instance of the XAudio2 engine
-	sound_device.p_xaudio2 = NULL;
-	hresult = XAudio2Create(&sound_device.p_xaudio2, 0, XAUDIO2_DEFAULT_PROCESSOR);
+	hresult = XAudio2Create(&audio_device.xaudio2, 0, XAUDIO2_DEFAULT_PROCESSOR);
 	if (FAILED(hresult))
 	{
-		//TODO: Logging
-		return;
+		return GAME_FAILURE;
 	}
 
 	// create mastering voice (sends audio data to hardware)
 	IXAudio2MasteringVoice *p_mastering_voice = NULL;
-	hresult = sound_device.p_xaudio2->CreateMasteringVoice(&p_mastering_voice);
+	hresult = audio_device.xaudio2->CreateMasteringVoice(&p_mastering_voice);
 	if (FAILED(hresult))
 	{
-		//TODO: Logging
-		return;
+		return GAME_FAILURE;
 	}
-	// --------------------------------
-}
 
-internal_function void platform_destroy_sound_device()
-{
-	delete[] sound_device.p_data_buffer;
-	// TODO: cleanup XAudio2 thingy?
+	return GAME_SUCCESS;
 }
 
 void platform_audio_play_file(const char *file_path)
@@ -243,19 +253,20 @@ void platform_audio_play_file(const char *file_path)
 	// locate the 'data' chunk and read its contents into a buffer
 	// fill out the audio data buffer with the contents of the fourccDATA chunk
 	find_chunk(hfile, fourccDATA, dw_chunk_size, dw_chunk_position);
-	// TODO: delete this data from the heap
-	sound_device.p_data_buffer = new BYTE[dw_chunk_size];
-	read_chunk_data(hfile, sound_device.p_data_buffer, dw_chunk_size, dw_chunk_position);
+	audio_device.data_buffer = new BYTE[dw_chunk_size];
+	read_chunk_data(hfile, audio_device.data_buffer, dw_chunk_size, dw_chunk_position);
 
 	// populate an XAUDIO2_BUFFER structure
 	buffer.AudioBytes = dw_chunk_size; // size of the audio buffer in bytes
-	buffer.pAudioData = sound_device.p_data_buffer; // buffer containing audio data
+	buffer.pAudioData = audio_device.data_buffer; // buffer containing audio data
 	buffer.Flags = XAUDIO2_END_OF_STREAM; // tell the source voice not to expect any data after this buffer 
+	buffer.pContext = audio_device.data_buffer;
 
 	// start it playing
 	IXAudio2SourceVoice *p_source_voice;
 
-	HRESULT hresult = sound_device.p_xaudio2->CreateSourceVoice(&p_source_voice, (WAVEFORMATEX *)&wfx);
+	static Voice_Callback voice_callback;
+	HRESULT hresult = audio_device.xaudio2->CreateSourceVoice(&p_source_voice, (WAVEFORMATEX *)&wfx, 0, XAUDIO2_DEFAULT_FREQ_RATIO, &voice_callback, NULL, NULL);
 	if (FAILED(hresult))
 	{
 		//TODO: Logging
@@ -414,8 +425,7 @@ LRESULT CALLBACK main_window_callback(HWND w_handle, UINT message, WPARAM wparam
 	return(result);
 }
 
-// TODO: bool32 return type; not exiting in this function
-internal_function void platform_create_window(const char *title, int width, int height)
+internal_function bool32 platform_create_window(const char *title, int width, int height)
 {	
 	WNDCLASSA w_class{};
 	w_class.style = CS_HREDRAW | CS_VREDRAW;
@@ -427,8 +437,7 @@ internal_function void platform_create_window(const char *title, int width, int 
 
 	if (!RegisterClassA(&w_class))
 	{
-		//TODO: Logging
-		exit(1);
+		return GAME_FAILURE;
 	}
 
 	HWND w_handle = CreateWindowExA(
@@ -447,12 +456,12 @@ internal_function void platform_create_window(const char *title, int width, int 
 
 	if (!w_handle)
 	{
-		//TODO: Logging
-		exit(1);
+		return GAME_FAILURE;
 	}
 
-	// TODO: Logging (successfully created window)
 	window_handles.hwnd = w_handle;
+
+	return GAME_SUCCESS;
 }
 
 internal_function void platform_process_events()
@@ -518,14 +527,12 @@ int CALLBACK WinMain(_In_ HINSTANCE h_instance, _In_opt_ HINSTANCE h_prev_instan
 	platform_logging_init();
 #endif
 
-#if 0
-	Game_Memory game_memory = {};
-	game_memory.permanent_storage_size = 64LL * 1024 * 1024;  // 64 MB
-	game_memory.transient_storage_size = 512LL * 1024 * 1024; // 512 MB
-	uint64 total_size = game_memory.permanent_storage_size + game_memory.transient_storage_size;
-	game_memory.permanent_storage = VirtualAlloc(0, total_size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-	game_memory.transient_storage = (uint8 *)game_memory.permanent_storage + game_memory.permanent_storage_size;
-#endif
+	//Game_Memory game_memory = {};
+	//game_memory.permanent_storage_size = 64LL * 1024 * 1024;  // 64 MB
+	//game_memory.transient_storage_size = 512LL * 1024 * 1024; // 512 MB
+	//uint64 total_size = game_memory.permanent_storage_size + game_memory.transient_storage_size;
+	//game_memory.permanent_storage = VirtualAlloc(0, total_size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+	//game_memory.transient_storage = (uint8 *)game_memory.permanent_storage + game_memory.permanent_storage_size;
 
 	LARGE_INTEGER perf_count_frequency_result;
 	QueryPerformanceFrequency(&perf_count_frequency_result);
@@ -533,16 +540,23 @@ int CALLBACK WinMain(_In_ HINSTANCE h_instance, _In_opt_ HINSTANCE h_prev_instan
 
 	window_handles.hinstance = h_instance;
 
-	platform_create_window("SomeGame", window_dimensions.width, window_dimensions.height);
-	platform_create_sound_device();
-	// TODO: remove this
-	platform_audio_play_file("res/audio/test.wav");
+	bool32 result = platform_create_window("SomeGame", window_dimensions.width, window_dimensions.height);
+	if (result != GAME_SUCCESS)
+	{
+		return result;
+	}
 
-	bool32 result_vulkan_init = game_vulkan_init();
-	if (result_vulkan_init != GAME_SUCCESS)
+	result = platform_create_audio_device();
+	if (result != GAME_SUCCESS)
+	{
+		return result;
+	}
+
+	result = game_vulkan_init();
+	if (result != GAME_SUCCESS)
 	{
 		platform_log("Fatal: Failed to initialize vulkan!\n");
-		assert(result_vulkan_init == GAME_SUCCESS);
+		return result;
 	}
 	
 	should_close = false;
@@ -585,8 +599,8 @@ int CALLBACK WinMain(_In_ HINSTANCE h_instance, _In_opt_ HINSTANCE h_prev_instan
 
 	// cleanup
 	//game_vulkan_cleanup();
-	platform_destroy_sound_device();
-	//platform_destroy_window(); ????
+	//platform_destroy_sound_device(&audio_device);
+	//platform_destroy_window();
 
 #ifdef _DEBUG
 	platform_logging_free();

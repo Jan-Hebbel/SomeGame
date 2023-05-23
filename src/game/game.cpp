@@ -37,6 +37,7 @@ void game_update(Game_State *game_state, real64 delta_time)
 		game_state->player.position.x -= 5.0f * (float)delta_time;
 		if (game_state->player.position.x <= -4.0f) {
 			walk_right = true;
+			platform_audio_play_file("res/audio/test.wav");
 		}
 	}
 }
