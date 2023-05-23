@@ -35,12 +35,6 @@ struct Win32WindowHandles
 	HWND hwnd;
 };
 
-struct Window_Dimensions
-{
-	uint width;
-	uint height;
-};
-
 struct Win32_Audio_Device
 {
 	IXAudio2 *xaudio2;
@@ -293,10 +287,10 @@ void *platform_get_window_handles()
 	return (void *)&window_handles;
 }
 
-void platform_get_window_dimensions(uint *width, uint *height)
+void platform_get_window_dimensions(Window_Dimensions *dimensions)
 {
-	*width = window_dimensions.width;
-	*height = window_dimensions.height;
+	dimensions->width = window_dimensions.width;
+	dimensions->height = window_dimensions.height;
 }
 
 void platform_error_message_window(const char *title, const char *message)
@@ -572,10 +566,7 @@ int CALLBACK WinMain(_In_ HINSTANCE h_instance, _In_opt_ HINSTANCE h_prev_instan
 
 		// update game and render
 		game_update(&game_state, perf_metrics.ms_per_frame / 1000.0);
-		if (window_dimensions.width != 0 && window_dimensions.height != 0)
-		{
-			game_render(&game_state);
-		}
+		game_render(&game_state);
 		
 		//
 		// calculating performance metrics

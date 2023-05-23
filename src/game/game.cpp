@@ -44,5 +44,9 @@ void game_update(Game_State *game_state, real64 delta_time)
 
 void game_render(Game_State *game_state)
 {
+	Window_Dimensions dimensions = {};
+	platform_get_window_dimensions(&dimensions);
+	if (dimensions.width == 0 || dimensions.height == 0) return;
+
 	draw_frame(game_state);
 }

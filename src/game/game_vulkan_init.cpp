@@ -321,11 +321,11 @@ void create_swapchain()
 	// choose image extent
 	if (capabilities.currentExtent.width == 0xFFFFFFFF || capabilities.currentExtent.height == 0xFFFFFFFF)
 	{
-		uint width, height;
-		platform_get_window_dimensions(&width, &height);
+		Window_Dimensions dimensions = {};
+		platform_get_window_dimensions(&dimensions);
 		VkExtent2D actual_extent = {
-			static_cast<uint32_t>(width),
-			static_cast<uint32_t>(height),
+			static_cast<uint32_t>(dimensions.width),
+			static_cast<uint32_t>(dimensions.height),
 		};
 		actual_extent.width = std::clamp(actual_extent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
 		actual_extent.height = std::clamp(actual_extent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
