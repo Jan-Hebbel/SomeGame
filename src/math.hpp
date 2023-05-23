@@ -33,5 +33,7 @@ Mat4 operator*(Mat4 a, Mat4 b);
 Mat4 identity();
 Mat4 orthographic_projection(float l, float r, float b, float t, float n, float f);
 Mat4 transpose(Mat4 m);
+Mat4 translate(Vec3 pos);
+Mat4 translate(Mat4 matrix, Vec3 pos);
 
 #endif

@@ -129,3 +129,20 @@ Mat4 transpose(Mat4 m)
 	}
 	return r;
 }
+
+Mat4 translate(Vec3 pos)
+{
+	Mat4 r = identity();
+	r.e[0][3] = pos.x;
+	r.e[1][3] = pos.y;
+	r.e[2][3] = pos.z;
+	return r;
+}
+
+Mat4 translate(Mat4 matrix, Vec3 pos)
+{
+	matrix.e[0][3] += pos.x;
+	matrix.e[1][3] += pos.y;
+	matrix.e[2][3] += pos.z;
+	return matrix;
+}

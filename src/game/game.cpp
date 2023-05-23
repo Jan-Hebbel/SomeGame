@@ -5,12 +5,43 @@
 #include "game/game_internal.hpp"
 #include "platform/platform.hpp"
 
-void game_update(Game_State *game_state)
+Perf_Metrics perf_metrics = {};
+
+void game_update(Game_State *game_state, real64 delta_time)
 {
-	
+	//Input_State input_state = input_queue.next();
+	//if (input_state & FORWARD)
+	//{
+	//	game_state->player.position.y += 0.1f * delta_time * game_state->player.speed;
+	//}
+	//if (input_state & LEFT)
+	//{
+	//	game_state->player.position.x -= 0.1f * delta_time * game_state->player.speed;
+	//}
+	//if (input_state & RIGHT)
+	//{
+	//	game_state->player.position.x += 0.1f * delta_time * game_state->player.speed;
+	//}
+	//if (input_state & BACKWARD)
+	//{
+	//	game_state->player.position.y -= 0.1f * delta_time * game_state->player.speed;
+	//}
+	static bool walk_right = true;
+	if (walk_right) {
+		game_state->player.position.x += 5.0f * (float)delta_time;
+		if (game_state->player.position.x >= 4.0f) {
+			walk_right = false;
+		}
+	} 
+	else {
+		game_state->player.position.x -= 5.0f * (float)delta_time;
+		if (game_state->player.position.x <= -4.0f) {
+			walk_right = true;
+		}
+	}
 }
 
-void game_render(real64 ms_per_frame, real64 fps, real64 mcpf)
+void game_render(Game_State *game_state)
 {
-	draw_frame(ms_per_frame, fps, mcpf);
+	draw_frame(game_state);
 }

@@ -456,21 +456,7 @@ void recreate_swapchain()
 	create_framebuffers();
 }
 
-// NOTE: most efficient way to pass a frequently changing small amount of data to the shader are push constants @Performance
-void update_uniform_buffer(uint32_t current_image)
-{
-	float scale = 6.0f;
-	float aspect = (float)context.swapchain_image_extent.width / (float)context.swapchain_image_extent.height;
-	Uniform_Buffer_Object ubo{
-		.model = identity(),
-		.view = identity(),
-		// NOTE: transposing here because my math library stores matrices in row major notation
-		.proj = transpose(orthographic_projection(-aspect * scale, aspect * scale, -scale, scale, 0.1f, 2.0f)),
-	};
-	memcpy(context.uniform_buffers_mapped[current_image], &ubo, sizeof(ubo));
-}
-
-void draw_frame(real64 ms_per_frame, real64 fps, real64 mcpf)
+void draw_frame(Game_State *game_state)
 {
 	// wait for the previous frame to finish
 	vkWaitForFences(context.device, 1, &context.in_flight_fences[context.current_frame], VK_TRUE, UINT64_MAX);
@@ -496,7 +482,19 @@ void draw_frame(real64 ms_per_frame, real64 fps, real64 mcpf)
 		assert(VK_SUCCESS == result);
 	}
 
-	update_uniform_buffer(context.current_frame);
+	//
+	// Update Uniform Buffers
+	// Note: most efficient way to pass a frequently changing small amount of data to the shader are push constants @Performance
+	//
+	float scale = 6.0f;
+	float aspect = (float)context.swapchain_image_extent.width / (float)context.swapchain_image_extent.height;
+	Uniform_Buffer_Object ubo{
+		.model = transpose(translate({game_state->player.position.x, game_state->player.position.y, 0})),
+		.view = identity(),
+		// NOTE: transposing here because my math library stores matrices in row major notation
+		.proj = transpose(orthographic_projection(-aspect * scale, aspect * scale, -scale, scale, 0.1f, 2.0f)),
+	};
+	memcpy(context.uniform_buffers_mapped[context.current_frame], &ubo, sizeof(ubo));
 
 	// record a command buffer that draws the frame onto that image
 	vkResetCommandBuffer(context.command_buffers[context.current_frame], 0);

@@ -54,6 +54,7 @@ global_variable bool should_close = true;
 global_variable Win32SoundOutput sound_device{};
 global_variable Win32WindowHandles window_handles{};
 global_variable Win32WindowDimensions window_dimensions = { WIDTH, HEIGHT };
+global_variable Game_State game_state = { {0.0f, 0.0f} };
 
 // big endian
 #ifdef _XBOX
@@ -303,7 +304,7 @@ LRESULT CALLBACK main_window_callback(HWND w_handle, UINT message, WPARAM wparam
 			static int i = 0;
 			if (i > 0)
 			{
-				if (wparam == SIZE_RESTORED) game_render(0.0f, 0.0f, 0.0f);
+				if (wparam == SIZE_RESTORED) game_render(&game_state);
 			}
 			window_dimensions = { LOWORD(lparam), HIWORD(lparam) };
 			++i;
@@ -344,7 +345,9 @@ LRESULT CALLBACK main_window_callback(HWND w_handle, UINT message, WPARAM wparam
 			// NOTE: to get only the first pressing of a button use: && is_down && !repeated
 			if (vk_code == 'W')
 			{
-				
+				OutputDebugStringA("W");
+				if (released) OutputDebugStringA(" released");
+				OutputDebugStringA("\n");
 			}
 			else if (vk_code == 'A')
 			{
@@ -356,7 +359,9 @@ LRESULT CALLBACK main_window_callback(HWND w_handle, UINT message, WPARAM wparam
 			}
 			else if (vk_code == 'D')
 			{
-
+				OutputDebugStringA("D");
+				if (released) OutputDebugStringA(" released");
+				OutputDebugStringA("\n");
 			}
 			else if (vk_code == 'Q')
 			{
@@ -540,8 +545,6 @@ int CALLBACK WinMain(_In_ HINSTANCE h_instance, _In_opt_ HINSTANCE h_prev_instan
 		assert(result_vulkan_init == GAME_SUCCESS);
 	}
 	
-	Game_State game_state = {};
-
 	should_close = false;
 
 	LARGE_INTEGER last_counter;
@@ -552,35 +555,29 @@ int CALLBACK WinMain(_In_ HINSTANCE h_instance, _In_opt_ HINSTANCE h_prev_instan
 	{
 		// handle input and other events
 		platform_process_events();
-		
-		static real64 ms_per_frame;
-		static real64 fps;
-		static real64 mcpf;
 
 		// update game and render
-		game_update(&game_state);
+		game_update(&game_state, perf_metrics.ms_per_frame / 1000.0);
 		if (window_dimensions.width != 0 && window_dimensions.height != 0)
 		{
-			game_render(ms_per_frame, fps, mcpf);
+			game_render(&game_state);
 		}
 		
-		// function: calculate performance metrics
+		//
+		// calculating performance metrics
+		//
 		uint64 end_cycle_count = __rdtsc();
 		LARGE_INTEGER end_counter;
 		QueryPerformanceCounter(&end_counter);
 
 		uint64 cycles_elapsed = end_cycle_count - last_cycle_count;
 		int64 counter_elapsed = end_counter.QuadPart - last_counter.QuadPart;
-		ms_per_frame = (1000.0f * (real64)counter_elapsed) / (real64)perf_count_frequency;
-		fps = (real64)perf_count_frequency / (real64)counter_elapsed;
-		// mcpf == mega cycles per frame
-		mcpf = (real64)cycles_elapsed / (1000.0f * 1000.0f);
-
-		// TODO: display metrics to screen
+		perf_metrics.ms_per_frame = (1000.0f * (real64)counter_elapsed) / (real64)perf_count_frequency;
+		perf_metrics.fps = (real64)perf_count_frequency / (real64)counter_elapsed;
+		perf_metrics.mcpf = (real64)cycles_elapsed / (1000.0f * 1000.0f); // mcpf == mega cycles per frame
 
 		last_counter = end_counter;
 		last_cycle_count = end_cycle_count;
-		// end of calculating performance metrics
 	}
 	
 	// don't crash on closing the application; TODO: is this needed?

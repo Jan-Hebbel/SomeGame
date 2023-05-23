@@ -5,7 +5,10 @@
 #include "math.hpp"
 
 struct Game_State {
-	
+	struct {
+		Vec2 position;
+		real32 speed;
+	} player;
 };
 
 struct Game_Memory {
@@ -15,6 +18,14 @@ struct Game_Memory {
 	void *transient_storage;
 };
 
+struct Perf_Metrics {
+	real64 ms_per_frame;
+	real64 fps;
+	real64 mcpf;
+};
+
+extern Perf_Metrics perf_metrics;
+
 //
 // NOTE: Services that the game provides
 //
@@ -23,7 +34,7 @@ bool32 game_vulkan_init();
 void game_vulkan_cleanup();
 void game_wait_idle();
 
-void game_update(Game_State *game_state);
-void game_render(real64 ms_per_frame, real64 fps, real64 mcpf);
+void game_update(Game_State *game_state, real64 delta_time);
+void game_render(Game_State *game_state);
 
 #endif
