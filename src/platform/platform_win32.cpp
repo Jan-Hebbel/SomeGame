@@ -77,7 +77,6 @@ global_variable bool should_close = true;
 global_variable Win32_Audio_Device audio_device = {};
 global_variable Win32WindowHandles window_handles = {};
 global_variable Window_Dimensions window_dimensions = { WIDTH, HEIGHT };
-global_variable Game_State game_state = { {0.0f, 0.0f} };
 
 // big endian
 #ifdef _XBOX
@@ -312,31 +311,31 @@ LRESULT CALLBACK main_window_callback(HWND w_handle, UINT message, WPARAM wparam
 
 	switch (message)
 	{
-		case WM_SIZE:
-		{
-			static int i = 0;
-			if (i > 0)
-			{
-				if (wparam == SIZE_RESTORED) game_render(&game_state);
-			}
-			window_dimensions = { LOWORD(lparam), HIWORD(lparam) };
-			++i;
-		} break;
+		//case WM_SIZE:
+		//{
+		//	static int i = 0;
+		//	if (i > 0)
+		//	{
+		//		if (wparam == SIZE_RESTORED) game_render(&game_state);
+		//	}
+		//	window_dimensions = { LOWORD(lparam), HIWORD(lparam) };
+		//	++i;
+		//} break;
 
 		case WM_CLOSE:
 		{
-			// TODO: handle this as a message to the user?
+			// Todo: handle this as a message to the user?
 			should_close = true;
 		} break;
 
 		case WM_ACTIVATEAPP:
 		{
-			OutputDebugStringA("WM_ACTIVATEAPP\n");
+			// Todo: open menu?
 		} break;
 
 		case WM_DESTROY:
 		{
-			// TODO: handle this as an error - recreate window?
+			// Todo: handle this as an error - recreate window?
 			should_close = true;
 		} break;
 		
@@ -345,77 +344,7 @@ LRESULT CALLBACK main_window_callback(HWND w_handle, UINT message, WPARAM wparam
 		case WM_KEYUP:
 		case WM_SYSKEYUP:
 		{
-			WORD vk_code = LOWORD(wparam);
-			WORD key_flags = HIWORD(lparam);
-
-			bool released = (key_flags & KF_UP) == KF_UP;
-			bool is_down = !released;
-			bool repeated = ((key_flags & KF_REPEAT) == KF_REPEAT) && !released;
-			bool alt_down = (key_flags & KF_ALTDOWN) == KF_ALTDOWN;
-
-			// NOTE: holding down e.g. w and then while still holding w, holding down a will result in vkcode == a
-			// to move at the same time with a and w, use: while (vkCode == 'W' && !released)
-			// NOTE: to get only the first pressing of a button use: && is_down && !repeated
-			if (vk_code == 'W')
-			{
-				OutputDebugStringA("W");
-				if (released) OutputDebugStringA(" released");
-				OutputDebugStringA("\n");
-			}
-			else if (vk_code == 'A')
-			{
-
-			}
-			else if (vk_code == 'S')
-			{
-
-			}
-			else if (vk_code == 'D')
-			{
-				OutputDebugStringA("D");
-				if (released) OutputDebugStringA(" released");
-				OutputDebugStringA("\n");
-			}
-			else if (vk_code == 'Q')
-			{
-
-			}
-			else if (vk_code == 'E')
-			{
-
-			}
-			else if (vk_code == 'R')
-			{
-
-			}
-			else if (vk_code == VK_LEFT)
-			{
-
-			}
-			else if (vk_code == VK_UP)
-			{
-
-			}
-			else if (vk_code == VK_RIGHT)
-			{
-
-			}
-			else if (vk_code == VK_DOWN)
-			{
-
-			}
-			else if (vk_code == VK_ESCAPE)
-			{
-
-			}
-			else if (vk_code == VK_SPACE)
-			{
-
-			}
-			else if (vk_code == VK_F4 && alt_down)
-			{
-				should_close = true;
-			}
+			assert(!"Keyboard Input came in through a dispatch message!");
 		} break;
 
 		default:
@@ -471,13 +400,97 @@ internal_function void platform_process_events()
 	MSG message;
 	while (PeekMessage(&message, 0, 0, 0, PM_REMOVE)) 
 	{
-		if (message.message == WM_QUIT)
+		switch (message.message)
 		{
-			should_close = true;
-		}
+			case WM_QUIT:
+			{
+				should_close = true;
+			} break;
 
-		TranslateMessage(&message);
-		DispatchMessage(&message);
+			case WM_KEYDOWN:
+			case WM_SYSKEYDOWN:
+			case WM_KEYUP:
+			case WM_SYSKEYUP:
+			{
+				WORD vk_code = LOWORD(message.wParam);
+				WORD key_flags = HIWORD(message.lParam);
+
+				bool released = (key_flags & KF_UP) == KF_UP;
+				bool is_down = !released;
+				bool repeated = ((key_flags & KF_REPEAT) == KF_REPEAT) && !released;
+				bool alt_down = (key_flags & KF_ALTDOWN) == KF_ALTDOWN;
+
+				// NOTE: holding down e.g. w and then while still holding w, holding down a will result in vkcode == a
+				// to move at the same time with a and w, use: while (vkCode == 'W' && !released)
+				// NOTE: to get only the first pressing of a button use: && is_down && !repeated
+				if (vk_code == 'W')
+				{
+					OutputDebugStringA("W");
+					if (released) OutputDebugStringA(" released");
+					OutputDebugStringA("\n");
+				}
+				else if (vk_code == 'A')
+				{
+
+				}
+				else if (vk_code == 'S')
+				{
+
+				}
+				else if (vk_code == 'D')
+				{
+					OutputDebugStringA("D");
+					if (released) OutputDebugStringA(" released");
+					OutputDebugStringA("\n");
+				}
+				else if (vk_code == 'Q')
+				{
+
+				}
+				else if (vk_code == 'E')
+				{
+
+				}
+				else if (vk_code == 'R')
+				{
+
+				}
+				else if (vk_code == VK_LEFT)
+				{
+
+				}
+				else if (vk_code == VK_UP)
+				{
+
+				}
+				else if (vk_code == VK_RIGHT)
+				{
+
+				}
+				else if (vk_code == VK_DOWN)
+				{
+
+				}
+				else if (vk_code == VK_ESCAPE)
+				{
+
+				}
+				else if (vk_code == VK_SPACE)
+				{
+
+				}
+				else if (vk_code == VK_F4 && alt_down)
+				{
+					should_close = true;
+				}
+			} break;
+
+			default:
+			{
+				TranslateMessage(&message);
+				DispatchMessage(&message);
+			} break;
+		}
 	}
 }
 
@@ -560,6 +573,8 @@ int CALLBACK WinMain(_In_ HINSTANCE h_instance, _In_opt_ HINSTANCE h_prev_instan
 		platform_log("Fatal: Failed to initialize vulkan!\n");
 		return result;
 	}
+
+	Game_State game_state = { {0.0f, 0.0f} };
 	
 	should_close = false;
 
