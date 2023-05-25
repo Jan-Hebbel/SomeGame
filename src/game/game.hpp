@@ -4,7 +4,14 @@
 #include "types.hpp"
 #include "math.hpp"
 
+enum Game_Mode {
+	GAME_MENU   = 0,
+	GAME_PLAY   = 1,
+	GAME_EDITOR = 2,
+};
+
 struct Game_State {
+	Game_Mode mode; // @Incomplete: should this be here or should this be a global constant or something else?
 	struct {
 		Vec2 position;
 		real32 speed;

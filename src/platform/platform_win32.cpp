@@ -311,16 +311,16 @@ LRESULT CALLBACK main_window_callback(HWND w_handle, UINT message, WPARAM wparam
 
 	switch (message)
 	{
-		//case WM_SIZE:
-		//{
-		//	static int i = 0;
-		//	if (i > 0)
-		//	{
-		//		if (wparam == SIZE_RESTORED) game_render(&game_state);
-		//	}
-		//	window_dimensions = { LOWORD(lparam), HIWORD(lparam) };
-		//	++i;
-		//} break;
+		case WM_SIZE:
+		{
+			window_dimensions = { LOWORD(lparam), HIWORD(lparam) };
+			//static int i = 0;
+			//if (i > 0)
+			//{
+			//	if (wparam == SIZE_RESTORED) game_render(&game_state);
+			//}
+			//++i;
+		} break;
 
 		case WM_CLOSE:
 		{
@@ -574,7 +574,7 @@ int CALLBACK WinMain(_In_ HINSTANCE h_instance, _In_opt_ HINSTANCE h_prev_instan
 		return result;
 	}
 
-	Game_State game_state = { {0.0f, 0.0f} };
+	Game_State game_state = { /* Mode */ GAME_PLAY, /* Player {Position, Speed}*/ {{0.0f, 0.0f}, 5.0f}};
 	
 	should_close = false;
 
@@ -587,7 +587,9 @@ int CALLBACK WinMain(_In_ HINSTANCE h_instance, _In_opt_ HINSTANCE h_prev_instan
 		// handle input and other events
 		platform_process_events();
 
-		// update game and render
+		//
+		// Game Update and Render
+		//
 		game_update(&game_state, perf_metrics.ms_per_frame / 1000.0);
 		game_render(&game_state);
 		

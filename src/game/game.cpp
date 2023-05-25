@@ -28,13 +28,13 @@ void game_update(Game_State *game_state, real64 delta_time)
 	//}
 	static bool walk_right = true;
 	if (walk_right) {
-		game_state->player.position.x += 5.0f * (float)delta_time;
+		game_state->player.position.x += 1.0f * game_state->player.speed * (float)delta_time;
 		if (game_state->player.position.x >= 4.0f) {
 			walk_right = false;
 		}
 	} 
 	else {
-		game_state->player.position.x -= 5.0f * (float)delta_time;
+		game_state->player.position.x -= 1.0f * game_state->player.speed * (float)delta_time;
 		if (game_state->player.position.x <= -4.0f) {
 			walk_right = true;
 			platform_audio_play_file("res/audio/test.wav");
@@ -47,6 +47,19 @@ void game_render(Game_State *game_state)
 	Window_Dimensions dimensions = {};
 	platform_get_window_dimensions(&dimensions);
 	if (dimensions.width == 0 || dimensions.height == 0) return;
+
+	switch (game_state->mode)
+	{
+		case GAME_PLAY:
+		{
+			draw_frame(game_state);
+		} break;
+
+		default:
+		{
+			platform_log("Different Game Modes not yet supported!");
+		} break;
+	}
 
 	draw_frame(game_state);
 }
