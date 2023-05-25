@@ -62,6 +62,14 @@ public:
 	void OnVoiceError(void *pBufferContext, HRESULT Error) {}
 };
 
+enum Input_Events {
+	WINDOW_CLOSE    = 0,
+	PLAYER_FORWARD  = 1,
+	PLAYER_LEFT     = 2,
+	PLAYER_BACKWARD = 3,
+	PLAYER_RIGHT    = 4,
+};
+
 constexpr uint WIDTH = 1440;
 constexpr uint HEIGHT = 810;
 
