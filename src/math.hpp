@@ -19,15 +19,19 @@ struct Mat4
 	float e[4][4];
 };
 
-inline Vec2 operator-(Vec2 v);
-inline Vec2 operator+(Vec2 v1, Vec2 v2);
-inline Vec2 operator-(Vec2 v1, Vec2 v2);
-inline Vec2 operator*(float s, Vec2 v);
+Vec2 operator-(Vec2 v);
+Vec2 operator+(Vec2 v1, Vec2 v2);
+Vec2 operator-(Vec2 v1, Vec2 v2);
+Vec2 operator*(float s, Vec2 v);
+Vec2 make_vec2(float x, float y);
+Vec2 normalize(Vec2 v);
 
-inline Vec3 operator-(Vec3 v);
-inline Vec3 operator+(Vec3 v1, Vec3 v2);
-inline Vec3 operator-(Vec3 v1, Vec3 v2);
-inline Vec3 operator*(float s, Vec3 v);
+Vec3 operator-(Vec3 v);
+Vec3 operator+(Vec3 v1, Vec3 v2);
+Vec3 operator-(Vec3 v1, Vec3 v2);
+Vec3 operator*(float s, Vec3 v);
+Vec3 make_vec3(float x, float y, float z);
+Vec3 normalize(Vec3 v);
 
 Mat4 operator*(Mat4 a, Mat4 b);
 Mat4 identity();

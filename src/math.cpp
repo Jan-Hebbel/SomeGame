@@ -2,7 +2,9 @@
 
 #include "types.hpp"
 
-inline Vec2 operator-(Vec2 v)
+#include <math.h>
+
+Vec2 operator-(Vec2 v)
 {
 	Vec2 result;
 	result.x = -v.x;
@@ -10,7 +12,7 @@ inline Vec2 operator-(Vec2 v)
 	return result;
 }
 
-inline Vec2 operator+(Vec2 v1, Vec2 v2)
+Vec2 operator+(Vec2 v1, Vec2 v2)
 {
 	Vec2 result;
 	result.x = v1.x + v2.x;
@@ -18,7 +20,7 @@ inline Vec2 operator+(Vec2 v1, Vec2 v2)
 	return result;
 }
 
-inline Vec2 operator-(Vec2 v1, Vec2 v2)
+Vec2 operator-(Vec2 v1, Vec2 v2)
 {
 	Vec2 result;
 	result.x = v1.x - v2.x;
@@ -26,7 +28,7 @@ inline Vec2 operator-(Vec2 v1, Vec2 v2)
 	return result;
 }
 
-inline Vec2 operator*(float s, Vec2 v)
+Vec2 operator*(float s, Vec2 v)
 {
 	Vec2 result;
 	result.x = s * v.x;
@@ -34,7 +36,21 @@ inline Vec2 operator*(float s, Vec2 v)
 	return result;
 }
 
-inline Vec3 operator-(Vec3 v)
+Vec2 make_vec2(float x, float y) {
+	Vec2 vec = { x, y };
+	return vec;
+}
+
+Vec2 normalize(Vec2 v) {
+	Vec2 r = {};
+	if (v.x == 0 && v.y == 0) return r;
+	float length = sqrtf(v.x * v.x + v.y * v.y);
+	r.x = v.x / length;
+	r.y = v.y / length;
+	return r;
+}
+
+Vec3 operator-(Vec3 v)
 {
 	Vec3 result;
 	result.x = -v.x;
@@ -43,7 +59,7 @@ inline Vec3 operator-(Vec3 v)
 	return result;
 }
 
-inline Vec3 operator+(Vec3 v1, Vec3 v2)
+Vec3 operator+(Vec3 v1, Vec3 v2)
 {
 	Vec3 result;
 	result.x = v1.x + v2.x;
@@ -52,7 +68,7 @@ inline Vec3 operator+(Vec3 v1, Vec3 v2)
 	return result;
 }
 
-inline Vec3 operator-(Vec3 v1, Vec3 v2)
+Vec3 operator-(Vec3 v1, Vec3 v2)
 {
 	Vec3 result;
 	result.x = v1.x - v2.x;
@@ -61,13 +77,28 @@ inline Vec3 operator-(Vec3 v1, Vec3 v2)
 	return result;
 }
 
-inline Vec3 operator*(float s, Vec3 v)
+Vec3 operator*(float s, Vec3 v)
 {
 	Vec3 result;
 	result.x = s * v.x;
 	result.y = s * v.y;
 	result.z = s * v.z;
 	return result;
+}
+
+Vec3 make_vec3(float x, float y, float z) {
+	Vec3 vec = { x, y, z };
+	return vec;
+}
+
+Vec3 normalize(Vec3 v) {
+	Vec3 r = {};
+	if (v.x == 0 && v.y == 0 && v.z == 0) return r;
+	float length = sqrtf(v.x * v.x + v.y * v.y + v.z * v.z);
+	r.x = v.x / length;
+	r.y = v.y / length;
+	r.z = v.z / length;
+	return r;
 }
 
 Mat4 operator*(Mat4 a, Mat4 b)
