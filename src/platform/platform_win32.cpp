@@ -21,13 +21,12 @@
 #include "platform/platform.hpp"
 
 #include "types.hpp"
+#include "input.hpp"
 #include "platform/platform_logger.hpp"
 #include "game/game.hpp"
 
 #include <windows.h>
 #include <xaudio2.h>
-
-#include <assert.h> // getchar()
 
 struct Win32WindowHandles
 {
@@ -60,14 +59,6 @@ public:
 	void OnBufferStart(void *pBufferContext) {}
 	void OnLoopEnd(void *pBufferContext) {}
 	void OnVoiceError(void *pBufferContext, HRESULT Error) {}
-};
-
-enum Input_Events {
-	WINDOW_CLOSE    = 0,
-	PLAYER_FORWARD  = 1,
-	PLAYER_LEFT     = 2,
-	PLAYER_BACKWARD = 3,
-	PLAYER_RIGHT    = 4,
 };
 
 constexpr uint WIDTH = 1440;
@@ -344,7 +335,7 @@ LRESULT CALLBACK main_window_callback(HWND w_handle, UINT message, WPARAM wparam
 		case WM_KEYUP:
 		case WM_SYSKEYUP:
 		{
-			assert(!"Keyboard Input came in through a dispatch message!");
+			platform_log("Keyboard Input cam in through a dispatch message!");
 		} break;
 
 		default:
@@ -395,13 +386,15 @@ internal_function bool32 platform_create_window(const char *title, int width, in
 	return GAME_SUCCESS;
 }
 
-internal_function void platform_process_events()
+internal_function void platform_process_events(Game_State *game_state, float delta_time)
 {
 	MSG message;
 	while (PeekMessage(&message, 0, 0, 0, PM_REMOVE)) 
 	{
 		switch (message.message)
 		{
+			//Event new_event;
+
 			case WM_QUIT:
 			{
 				should_close = true;
@@ -412,77 +405,102 @@ internal_function void platform_process_events()
 			case WM_KEYUP:
 			case WM_SYSKEYUP:
 			{
-				WORD vk_code = LOWORD(message.wParam);
-				WORD key_flags = HIWORD(message.lParam);
+				//WORD vk_code = LOWORD(message.wParam);
+				//WORD key_flags = HIWORD(message.lParam);
 
-				bool released = (key_flags & KF_UP) == KF_UP;
-				bool is_down = !released;
-				bool repeated = ((key_flags & KF_REPEAT) == KF_REPEAT) && !released;
-				bool alt_down = (key_flags & KF_ALTDOWN) == KF_ALTDOWN;
+				//bool released = (key_flags & KF_UP) == KF_UP;
+				//bool is_down = !released;
+				//bool repeated = ((key_flags & KF_REPEAT) == KF_REPEAT) && !released;
+				//bool alt_down = (key_flags & KF_ALTDOWN) == KF_ALTDOWN;
 
 				// NOTE: holding down e.g. w and then while still holding w, holding down a will result in vkcode == a
 				// to move at the same time with a and w, use: while (vkCode == 'W' && !released)
 				// NOTE: to get only the first pressing of a button use: && is_down && !repeated
-				if (vk_code == 'W')
-				{
-					OutputDebugStringA("W");
-					if (released) OutputDebugStringA(" released");
-					OutputDebugStringA("\n");
-				}
-				else if (vk_code == 'A')
-				{
 
-				}
-				else if (vk_code == 'S')
-				{
+				//switch (vk_code) {
+				//	case 'W':
+				//	{
+				//		new_event.key_code = W;
+				//		new_event.key_is_down = is_down;
+				//		event_queue_add(new_event, (*index)++);
+				//	} break;
 
-				}
-				else if (vk_code == 'D')
-				{
-					OutputDebugStringA("D");
-					if (released) OutputDebugStringA(" released");
-					OutputDebugStringA("\n");
-				}
-				else if (vk_code == 'Q')
-				{
+				//	case 'A':
+				//	{
+				//		new_event.key_code = A;
+				//		new_event.key_is_down = is_down;
+				//		event_queue_add(new_event, (*index)++);
+				//	} break;
 
-				}
-				else if (vk_code == 'E')
-				{
+				//	case 'S':
+				//	{
+				//		new_event.key_code = S;
+				//		new_event.key_is_down = is_down;
+				//		event_queue_add(new_event, (*index)++);
+				//	} break;
+				//	
+				//	case 'D':
+				//	{
+				//		new_event.key_code = D;
+				//		new_event.key_is_down = is_down;
+				//		event_queue_add(new_event, (*index)++);
+				//	} break;
 
-				}
-				else if (vk_code == 'R')
-				{
+				//	case 'Q':
+				//	{
 
-				}
-				else if (vk_code == VK_LEFT)
-				{
+				//	} break;
 
-				}
-				else if (vk_code == VK_UP)
-				{
+				//	case 'E':
+				//	{
+				//		
+				//	} break;
 
-				}
-				else if (vk_code == VK_RIGHT)
-				{
+				//	case'R':
+				//	{
 
-				}
-				else if (vk_code == VK_DOWN)
-				{
+				//	} break;
 
-				}
-				else if (vk_code == VK_ESCAPE)
-				{
+				//	case VK_LEFT:
+				//	{
 
-				}
-				else if (vk_code == VK_SPACE)
-				{
+				//	} break;
 
-				}
-				else if (vk_code == VK_F4 && alt_down)
-				{
-					should_close = true;
-				}
+				//	case VK_UP:
+				//	{
+
+				//	} break;
+
+				//	case VK_RIGHT:
+				//	{
+
+				//	} break;
+
+				//	case VK_DOWN:
+				//	{
+
+				//	} break;
+
+				//	case VK_ESCAPE:
+				//	{
+				//		should_close = true;
+				//	} break;
+
+				//	case VK_SPACE:
+				//	{
+
+				//	} break;
+
+				//	case VK_F4: 
+				//	{
+				//		if (alt_down) should_close = true;
+				//	} break;
+
+				//	default:
+				//	{
+				//		// do nothing
+				//	} break;
+				//}
 			} break;
 
 			default:
@@ -491,6 +509,20 @@ internal_function void platform_process_events()
 				DispatchMessage(&message);
 			} break;
 		}
+	}
+
+	Event_Reader event_reader = {};
+	if (GetKeyState('W') & 0x8000) {
+		event_queue_add({ W, true }, &event_reader);
+	}
+	if (GetKeyState('A') & 0x8000) {
+		event_queue_add({ A, true }, &event_reader);
+	}
+	if (GetKeyState('S') & 0x8000) {
+		event_queue_add({ S, true }, &event_reader);
+	}
+	if (GetKeyState('D') & 0x8000) {
+		event_queue_add({ D, true }, &event_reader);
 	}
 }
 
@@ -575,7 +607,7 @@ int CALLBACK WinMain(_In_ HINSTANCE h_instance, _In_opt_ HINSTANCE h_prev_instan
 	}
 
 	Game_State game_state = { /* Mode */ GAME_PLAY, /* Player {Position, Speed}*/ {{0.0f, 0.0f}, 5.0f}};
-	
+
 	should_close = false;
 
 	LARGE_INTEGER last_counter;
@@ -584,13 +616,17 @@ int CALLBACK WinMain(_In_ HINSTANCE h_instance, _In_opt_ HINSTANCE h_prev_instan
 
 	while (!should_close)
 	{
-		// handle input and other events
-		platform_process_events();
+		float delta_time = (float)(perf_metrics.ms_per_frame / 1000.0);
+
+		//
+		// Event handling
+		//
+		platform_process_events(&game_state, delta_time);
 
 		//
 		// Game Update and Render
 		//
-		game_update(&game_state, perf_metrics.ms_per_frame / 1000.0);
+		game_update(&game_state, delta_time);
 		game_render(&game_state);
 		
 		//

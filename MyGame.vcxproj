@@ -103,6 +103,7 @@
   <ItemGroup>
     <ClCompile Include="src\game\game.cpp" />
     <ClCompile Include="src\game\game_vulkan_init.cpp" />
+    <ClCompile Include="src\input.cpp" />
     <ClCompile Include="src\math.cpp" />
     <ClCompile Include="src\platform\platform_linux.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
@@ -112,6 +113,7 @@
     <ClCompile Include="src\platform\platform_win32.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\input.hpp" />
     <ClInclude Include="src\lib\stb_image.h" />
     <ClInclude Include="src\lib\stb_truetype.h" />
     <ClInclude Include="src\game\game.hpp" />

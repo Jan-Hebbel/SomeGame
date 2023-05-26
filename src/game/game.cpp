@@ -1,6 +1,7 @@
 #include "game/game.hpp"
 
 #include "types.hpp"
+#include "input.hpp"
 #include "math.hpp"
 #include "game/game_internal.hpp"
 #include "platform/platform.hpp"
@@ -9,37 +10,49 @@ Perf_Metrics perf_metrics = {};
 
 void game_update(Game_State *game_state, real64 delta_time)
 {
-	//Input_State input_state = input_queue.next();
-	//if (input_state & FORWARD)
-	//{
-	//	game_state->player.position.y += 0.1f * delta_time * game_state->player.speed;
-	//}
-	//if (input_state & LEFT)
-	//{
-	//	game_state->player.position.x -= 0.1f * delta_time * game_state->player.speed;
-	//}
-	//if (input_state & RIGHT)
-	//{
-	//	game_state->player.position.x += 0.1f * delta_time * game_state->player.speed;
-	//}
-	//if (input_state & BACKWARD)
-	//{
-	//	game_state->player.position.y -= 0.1f * delta_time * game_state->player.speed;
-	//}
-	static bool walk_right = true;
-	if (walk_right) {
-		game_state->player.position.x += 1.0f * game_state->player.speed * (float)delta_time;
-		if (game_state->player.position.x >= 4.0f) {
-			walk_right = false;
+	Event_Reader event_reader = {};
+
+	Event current_event;
+	while ((current_event = event_queue_next(&event_reader)).key_code != UNKNOWN) {
+		switch (current_event.key_code) {
+			case W: {
+				if (current_event.key_is_down)
+					game_state->player.position.y -= game_state->player.speed * (float)delta_time;
+			} break;
+
+			case A: {
+				if (current_event.key_is_down)
+					game_state->player.position.x -= game_state->player.speed * (float)delta_time;
+			} break;
+
+			case S: {
+				if (current_event.key_is_down)
+					game_state->player.position.y += game_state->player.speed * (float)delta_time;
+			} break;
+
+			case D: {
+				if (current_event.key_is_down)
+					game_state->player.position.x += game_state->player.speed * (float)delta_time;
+			} break;
 		}
-	} 
-	else {
-		game_state->player.position.x -= 1.0f * game_state->player.speed * (float)delta_time;
-		if (game_state->player.position.x <= -4.0f) {
-			walk_right = true;
-			platform_audio_play_file("res/audio/test.wav");
 		}
-	}
+
+	event_queue_clear();
+
+	//static bool walk_right = true;
+	//if (walk_right) {
+	//	game_state->player.position.x += 1.0f * game_state->player.speed * (float)delta_time;
+	//	if (game_state->player.position.x >= 4.0f) {
+	//		walk_right = false;
+	//	}
+	//} 
+	//else {
+	//	game_state->player.position.x -= 1.0f * game_state->player.speed * (float)delta_time;
+	//	if (game_state->player.position.x <= -4.0f) {
+	//		walk_right = true;
+	//		platform_audio_play_file("res/audio/test.wav");
+	//	}
+	//}
 }
 
 void game_render(Game_State *game_state)

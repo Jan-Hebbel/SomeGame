@@ -2,6 +2,7 @@
 #define GAME_H
 
 #include "types.hpp"
+#include "input.hpp"
 #include "math.hpp"
 
 enum Game_Mode {
