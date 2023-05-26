@@ -524,6 +524,9 @@ internal_function void platform_process_events(Game_State *game_state, float del
 	if (GetKeyState('D') & 0x8000) {
 		event_queue_add({ D, true }, &event_reader);
 	}
+	if (GetKeyState(VK_SPACE) & 0x8000) {
+		event_queue_add({ SPACE, true }, &event_reader);
+	}
 }
 
 File_Asset *platform_read_file(const char *file_path, uint32 *bytes_read)

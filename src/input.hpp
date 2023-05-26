@@ -12,6 +12,7 @@ enum Key_Code {
 	A = 3,
 	S = 4,
 	D = 5,
+	SPACE = 6,
 };
 
 struct Event { // @Incomplete: key_is_down is currently not needed; refactor and keep it or discard it?

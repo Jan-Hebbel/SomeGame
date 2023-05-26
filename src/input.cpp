@@ -20,7 +20,7 @@ void event_queue_add(Event new_event, Event_Reader *event_reader) {
 	event_queue[event_reader->index++] = new_event;
 }
 
-void event_queue_clear() {
+void event_queue_clear() { // @Cleanup: keep this or set event_queue[event_reader->index].key_code to UNKNOWN in event_queue_next()?
 	for (int i = 0; i < EVENT_QUEUE_SIZE; ++i)
 	{
 		event_queue[i] = { UNKNOWN, false };

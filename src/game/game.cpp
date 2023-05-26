@@ -35,7 +35,7 @@ void game_update(Game_State *game_state, real64 delta_time)
 					game_state->player.position.x += game_state->player.speed * (float)delta_time;
 			} break;
 		}
-		}
+	}
 
 	event_queue_clear();
 
