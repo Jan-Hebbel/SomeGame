@@ -34,25 +34,14 @@ void game_update(Game_State *game_state, real64 delta_time)
 				if (current_event.key_is_down)
 					game_state->player.position.x += game_state->player.speed * (float)delta_time;
 			} break;
+
+			case ESCAPE: {
+				game_state->should_close = true;
+			} break;
 		}
 	}
 
 	event_queue_clear();
-
-	//static bool walk_right = true;
-	//if (walk_right) {
-	//	game_state->player.position.x += 1.0f * game_state->player.speed * (float)delta_time;
-	//	if (game_state->player.position.x >= 4.0f) {
-	//		walk_right = false;
-	//	}
-	//} 
-	//else {
-	//	game_state->player.position.x -= 1.0f * game_state->player.speed * (float)delta_time;
-	//	if (game_state->player.position.x <= -4.0f) {
-	//		walk_right = true;
-	//		platform_audio_play_file("res/audio/test.wav");
-	//	}
-	//}
 }
 
 void game_render(Game_State *game_state)
@@ -73,6 +62,4 @@ void game_render(Game_State *game_state)
 			platform_log("Different Game Modes not yet supported!");
 		} break;
 	}
-
-	draw_frame(game_state);
 }
