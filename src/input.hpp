@@ -14,7 +14,7 @@ enum Key_Code {
 	D = 5,
 };
 
-struct Event {
+struct Event { // @Incomplete: key_is_down is currently not needed; refactor and keep it or discard it?
 	Key_Code key_code;
 	bool key_is_down; // if not down then key was released
 };
