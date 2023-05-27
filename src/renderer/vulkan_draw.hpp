@@ -3,6 +3,9 @@
 
 #include "game.hpp"
 
+// 
+// Functions that provided from renderer
+//
 void draw_frame(Game_State *game_state);
 
 #endif

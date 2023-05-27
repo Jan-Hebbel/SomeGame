@@ -24,7 +24,7 @@
     <ClCompile Include="src\platform\platform_linux.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\vulkan\vulkan_init.cpp">
+    <ClCompile Include="src\renderer\vulkan_init.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\platform\platform_logger.cpp">
@@ -50,7 +50,7 @@
     <ClInclude Include="src\platform\platform_logger.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\vulkan\vulkan_draw.hpp">
+    <ClInclude Include="src\renderer\vulkan_draw.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\lib\stb_truetype.h">
@@ -63,6 +63,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\input.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\renderer\vulkan_init.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

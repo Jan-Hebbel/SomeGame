@@ -13,7 +13,7 @@
 #include "types.hpp"
 #include "math.hpp"
 #include "game.hpp"
-#include "vulkan/vulkan_draw.hpp"
+#include "renderer/vulkan_draw.hpp"
 #include "platform/platform.hpp"
 
 #define STB_TRUETYPE_IMPLEMENTATION
@@ -802,7 +802,7 @@ internal_function bool32 create_shader_module(const char *shader_file, VkShaderM
 	return GAME_SUCCESS;
 }
 
-bool32 game_vulkan_init()
+bool32 renderer_vulkan_init()
 {
 	// debug callback: which messages are filtered and which are not
 	VkDebugUtilsMessengerCreateInfoEXT messenger_info{};
@@ -1666,13 +1666,13 @@ bool32 game_vulkan_init()
 	return GAME_SUCCESS;
 }
 
-void game_vulkan_cleanup()
+void renderer_vulkan_cleanup()
 {
 	// TODO
 	cleanup_swapchain();
 }
 
-void game_wait_idle()
+void renderer_vulkan_wait_idle()
 {
 	vkDeviceWaitIdle(context.device);
 }

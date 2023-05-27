@@ -23,6 +23,7 @@
 #include "types.hpp"
 #include "input.hpp"
 #include "game.hpp"
+#include "renderer/vulkan_init.hpp"
 #include "platform/platform_logger.hpp"
 
 #include <windows.h>
@@ -532,7 +533,7 @@ int CALLBACK WinMain(_In_ HINSTANCE h_instance, _In_opt_ HINSTANCE h_prev_instan
 		return result;
 	}
 
-	result = game_vulkan_init();
+	result = renderer_vulkan_init();
 	if (result != GAME_SUCCESS)
 	{
 		platform_log("Fatal: Failed to initialize vulkan!\n");
@@ -580,10 +581,10 @@ int CALLBACK WinMain(_In_ HINSTANCE h_instance, _In_opt_ HINSTANCE h_prev_instan
 	}
 	
 	// don't crash on closing the application; TODO: is this needed?
-	game_wait_idle();
+	renderer_vulkan_wait_idle();
 
 	// cleanup
-	//game_vulkan_cleanup();
+	//renderer_vulkan_cleanup();
 	//platform_destroy_sound_device(&audio_device);
 	//platform_destroy_window();
 

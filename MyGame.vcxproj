@@ -102,7 +102,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\game.cpp" />
-    <ClCompile Include="src\vulkan\vulkan_init.cpp" />
+    <ClCompile Include="src\renderer\vulkan_init.cpp" />
     <ClCompile Include="src\input.cpp" />
     <ClCompile Include="src\math.cpp" />
     <ClCompile Include="src\platform\platform_linux.cpp">
@@ -117,11 +117,12 @@
     <ClInclude Include="src\lib\stb_image.h" />
     <ClInclude Include="src\lib\stb_truetype.h" />
     <ClInclude Include="src\game.hpp" />
-    <ClInclude Include="src\vulkan\vulkan_draw.hpp" />
+    <ClInclude Include="src\renderer\vulkan_draw.hpp" />
     <ClInclude Include="src\math.hpp" />
     <ClInclude Include="src\types.hpp" />
     <ClInclude Include="src\platform\platform.hpp" />
     <ClInclude Include="src\platform\platform_logger.hpp" />
+    <ClInclude Include="src\renderer\vulkan_init.hpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="res\shaders\compile.bat" />
