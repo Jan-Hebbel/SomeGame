@@ -403,13 +403,13 @@ void recreate_swapchain()
 void draw_frame(Game_State *game_state)
 {
 	// 
-	// Wait for the previous frame to finish
+	// Wait for the previous frame to finish.
 	//
 	vkWaitForFences(context.device, 1, &context.in_flight_fences[context.current_frame], VK_TRUE, UINT64_MAX);
 	vkResetFences(context.device, 1, &context.in_flight_fences[context.current_frame]);
 
 	//
-	// Recreate the swapchain if the swapchain is outdated (resizing or minimizing window)
+	// Recreate the swapchain if the swapchain is outdated (resizing or minimizing window).
 	//
 	static bool swapchain_outdated = false;
 	if (swapchain_outdated)
@@ -418,7 +418,7 @@ void draw_frame(Game_State *game_state)
 	}
 
 	//
-	// Acquire an image from the swapchain
+	// Acquire an image from the swapchain.
 	//
 	uint32 image_index;
 	VkResult result = vkAcquireNextImageKHR(context.device, context.swapchain, UINT64_MAX, context.image_available_semaphores[context.current_frame], VK_NULL_HANDLE, &image_index);
@@ -434,20 +434,20 @@ void draw_frame(Game_State *game_state)
 	}
 
 	//
-	// Update Uniform Buffers (@Performance: most efficient way to pass a frequently changing small amount of data to the shader are push constants)
+	// Update Uniform Buffers. (@Performance: Most efficient way to pass a frequently changing small amount of data to the shader are push constants)
 	//
 	float scale = 6.0f;
 	float aspect = (float)context.swapchain_image_extent.width / (float)context.swapchain_image_extent.height;
 	Uniform_Buffer_Object ubo{
 		.model = transpose(translate({game_state->player.position.x, game_state->player.position.y, 0})),
 		.view = identity(),
-		// NOTE: transposing here because my math library stores matrices in row major notation
+		// NOTE: Transposing here because my math library stores matrices in row major notation.
 		.proj = transpose(orthographic_projection(-aspect * scale, aspect * scale, -scale, scale, 0.1f, 2.0f)),
 	};
 	memcpy(context.uniform_buffers_mapped[context.current_frame], &ubo, sizeof(ubo));
 
 	// 
-	// Draw (record command buffer that draws image)
+	// Draw. (Record command buffer that draws image.)
 	//
 	VkCommandBuffer command_buffer = context.command_buffers[context.current_frame];
 	vkResetCommandBuffer(command_buffer, 0);
@@ -511,7 +511,7 @@ void draw_frame(Game_State *game_state)
 	}
 
 	//
-	// submit the draw command
+	// Submit the draw command.
 	// 
 	VkSemaphore wait_semaphores[] = { context.image_available_semaphores[context.current_frame] };
 	VkSemaphore signal_semaphores[] = { context.render_finished_semaphores[context.current_frame] };
@@ -534,7 +534,7 @@ void draw_frame(Game_State *game_state)
 	}
 
 	//
-	// Present the image
+	// Present the image.
 	//
 	VkSwapchainKHR swapchains[] = { context.swapchain };
 	VkPresentInfoKHR present_info{
