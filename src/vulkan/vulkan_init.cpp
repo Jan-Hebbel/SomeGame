@@ -12,8 +12,8 @@
 
 #include "types.hpp"
 #include "math.hpp"
-#include "game/game.hpp"
-#include "game/game_internal.hpp"
+#include "game.hpp"
+#include "vulkan/vulkan_draw.hpp"
 #include "platform/platform.hpp"
 
 #define STB_TRUETYPE_IMPLEMENTATION
@@ -1384,36 +1384,35 @@ bool32 game_vulkan_init()
 	// create texture image
 	{
 		int width, height, channels;
-		stbi_uc *pixels = stbi_load("res/textures/idea1.png", &width, &height, &channels, STBI_rgb_alpha);
+		stbi_uc *pixels = stbi_load("res/textures/knight.png", &width, &height, &channels, STBI_rgb_alpha);
 		VkDeviceSize image_size = width * height * 4;
 		if (!pixels) 
 		{
 			platform_log("Failed to load texture!\n");
+			assert(pixels != NULL);
 		}
-		else 
-		{
-			VkBuffer staging_buffer;
-			VkDeviceMemory staging_buffer_memory;
 
-			create_buffer(image_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, staging_buffer, staging_buffer_memory);
+		VkBuffer staging_buffer;
+		VkDeviceMemory staging_buffer_memory;
 
-			void *data;
-			vkMapMemory(context.device, staging_buffer_memory, 0, image_size, 0, &data);
-			memcpy(data, pixels, static_cast<size_t>(image_size));
-			vkUnmapMemory(context.device, staging_buffer_memory);
-			stbi_image_free(pixels);
+		create_buffer(image_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, staging_buffer, staging_buffer_memory);
 
-			create_image(width, height, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, context.texture_image, context.texture_image_memory);
+		void *data;
+		vkMapMemory(context.device, staging_buffer_memory, 0, image_size, 0, &data);
+		memcpy(data, pixels, static_cast<size_t>(image_size));
+		vkUnmapMemory(context.device, staging_buffer_memory);
+		stbi_image_free(pixels);
 
-			transition_image_layout(context.texture_image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+		create_image(width, height, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, context.texture_image, context.texture_image_memory);
 
-			copy_buffer_to_image(staging_buffer, context.texture_image, static_cast<uint32_t>(width), static_cast<uint32_t>(height));
+		transition_image_layout(context.texture_image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
-			transition_image_layout(context.texture_image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+		copy_buffer_to_image(staging_buffer, context.texture_image, static_cast<uint32_t>(width), static_cast<uint32_t>(height));
 
-			vkDestroyBuffer(context.device, staging_buffer, 0);
-			vkFreeMemory(context.device, staging_buffer_memory, 0);
-		}
+		transition_image_layout(context.texture_image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+		vkDestroyBuffer(context.device, staging_buffer, 0);
+		vkFreeMemory(context.device, staging_buffer_memory, 0);
 	}
 
 

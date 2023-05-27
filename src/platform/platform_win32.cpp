@@ -22,8 +22,8 @@
 
 #include "types.hpp"
 #include "input.hpp"
+#include "game.hpp"
 #include "platform/platform_logger.hpp"
-#include "game/game.hpp"
 
 #include <windows.h>
 #include <xaudio2.h>

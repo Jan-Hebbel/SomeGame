@@ -101,8 +101,8 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="src\game\game.cpp" />
-    <ClCompile Include="src\game\game_vulkan_init.cpp" />
+    <ClCompile Include="src\game.cpp" />
+    <ClCompile Include="src\vulkan\vulkan_init.cpp" />
     <ClCompile Include="src\input.cpp" />
     <ClCompile Include="src\math.cpp" />
     <ClCompile Include="src\platform\platform_linux.cpp">
@@ -116,8 +116,8 @@
     <ClInclude Include="src\input.hpp" />
     <ClInclude Include="src\lib\stb_image.h" />
     <ClInclude Include="src\lib\stb_truetype.h" />
-    <ClInclude Include="src\game\game.hpp" />
-    <ClInclude Include="src\game\game_internal.hpp" />
+    <ClInclude Include="src\game.hpp" />
+    <ClInclude Include="src\vulkan\vulkan_draw.hpp" />
     <ClInclude Include="src\math.hpp" />
     <ClInclude Include="src\types.hpp" />
     <ClInclude Include="src\platform\platform.hpp" />

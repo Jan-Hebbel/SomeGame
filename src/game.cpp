@@ -1,9 +1,9 @@
-#include "game/game.hpp"
+#include "game.hpp"
 
 #include "types.hpp"
 #include "input.hpp"
 #include "math.hpp"
-#include "game/game_internal.hpp"
+#include "vulkan/vulkan_draw.hpp"
 #include "platform/platform.hpp"
 
 Perf_Metrics perf_metrics = {};
