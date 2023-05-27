@@ -150,11 +150,6 @@ VKAPI_ATTR VkBool32 VKAPI_CALL vulkan_debug_callback(VkDebugUtilsMessageSeverity
 	return VK_FALSE;
 }
 
-internal_function void record_command_buffer(VkCommandBuffer command_buffer, uint32 image_index)
-{
-	
-}
-
 void cleanup_swapchain()
 {
 	for (size_t i = 0; i < context.swapchain_framebuffers.size(); ++i)
