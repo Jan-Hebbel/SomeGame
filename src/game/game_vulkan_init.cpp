@@ -152,63 +152,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL vulkan_debug_callback(VkDebugUtilsMessageSeverity
 
 internal_function void record_command_buffer(VkCommandBuffer command_buffer, uint32 image_index)
 {
-	VkCommandBufferBeginInfo begin_info{
-		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-	};
-
-	VkResult result = vkBeginCommandBuffer(command_buffer, &begin_info);
-	if (VK_SUCCESS != result)
-	{
-		platform_log("Fatal: Failed to begin command buffer!\n");
-		assert(result == VK_SUCCESS);
-	}
-
-	VkClearValue clear_color{ {{0.0f, 0.0f, 0.0f, 1.0f}} };
-
-	VkRenderPassBeginInfo render_pass_info{
-		.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-		.renderPass = context.render_pass,
-		.framebuffer = context.swapchain_framebuffers[image_index],
-		.renderArea = { {0, 0}, context.swapchain_image_extent },
-		.clearValueCount = 1,
-		.pClearValues = &clear_color,
-	};
-
-	vkCmdBeginRenderPass(command_buffer, &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
-
-	vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context.graphics_pipeline);
-
-	VkBuffer vertex_buffers[] = { context.vertex_buffer };
-	VkDeviceSize offsets[] = { 0 };
-	vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers, offsets);
-	vkCmdBindIndexBuffer(command_buffer, context.index_buffer, 0, VK_INDEX_TYPE_UINT16);
-
-	VkViewport viewport{ 
-		.x = 0.0f, .y = 0.0f, 
-		.width = static_cast<float>(context.swapchain_image_extent.width), 
-		.height = static_cast<float>(context.swapchain_image_extent.height),
-		.minDepth = 0.0f, .maxDepth = 1.0f
-	};
-	vkCmdSetViewport(command_buffer, 0, 1, &viewport);
-
-	VkRect2D scissor{
-		.offset = { 0, 0 },
-		.extent = context.swapchain_image_extent,
-	};
-	vkCmdSetScissor(command_buffer, 0, 1, &scissor);
-
-	vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context.pipeline_layout, 0, 1, &context.descriptor_sets[context.current_frame], 0, 0);
-
-	vkCmdDrawIndexed(command_buffer, sizeof(indices) / sizeof(indices[0]), 1, 0, 0, 0);
-
-	vkCmdEndRenderPass(command_buffer);
-
-	result = vkEndCommandBuffer(command_buffer);
-	if (VK_SUCCESS != result)
-	{
-		platform_log("Fatal: Failed to end command buffer!\n");
-		assert(VK_SUCCESS == result);
-	}
+	
 }
 
 void cleanup_swapchain()
@@ -458,17 +402,24 @@ void recreate_swapchain()
 
 void draw_frame(Game_State *game_state)
 {
-	// wait for the previous frame to finish
+	// 
+	// Wait for the previous frame to finish
+	//
 	vkWaitForFences(context.device, 1, &context.in_flight_fences[context.current_frame], VK_TRUE, UINT64_MAX);
 	vkResetFences(context.device, 1, &context.in_flight_fences[context.current_frame]);
 
+	//
+	// Recreate the swapchain if the swapchain is outdated (resizing or minimizing window)
+	//
 	static bool swapchain_outdated = false;
 	if (swapchain_outdated)
 	{
 		recreate_swapchain();
 	}
 
-	// acquire an image from the swapchain
+	//
+	// Acquire an image from the swapchain
+	//
 	uint32 image_index;
 	VkResult result = vkAcquireNextImageKHR(context.device, context.swapchain, UINT64_MAX, context.image_available_semaphores[context.current_frame], VK_NULL_HANDLE, &image_index);
 	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
@@ -483,8 +434,7 @@ void draw_frame(Game_State *game_state)
 	}
 
 	//
-	// Update Uniform Buffers
-	// Note: most efficient way to pass a frequently changing small amount of data to the shader are push constants @Performance
+	// Update Uniform Buffers (@Performance: most efficient way to pass a frequently changing small amount of data to the shader are push constants)
 	//
 	float scale = 6.0f;
 	float aspect = (float)context.swapchain_image_extent.width / (float)context.swapchain_image_extent.height;
@@ -496,11 +446,73 @@ void draw_frame(Game_State *game_state)
 	};
 	memcpy(context.uniform_buffers_mapped[context.current_frame], &ubo, sizeof(ubo));
 
-	// record a command buffer that draws the frame onto that image
-	vkResetCommandBuffer(context.command_buffers[context.current_frame], 0);
-	record_command_buffer(context.command_buffers[context.current_frame], image_index);
+	// 
+	// Draw (record command buffer that draws image)
+	//
+	VkCommandBuffer command_buffer = context.command_buffers[context.current_frame];
+	vkResetCommandBuffer(command_buffer, 0);
 
-	// submit the recorded command buffer
+	VkCommandBufferBeginInfo begin_info{
+		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+	};
+
+	result = vkBeginCommandBuffer(command_buffer, &begin_info);
+	if (VK_SUCCESS != result)
+	{
+		platform_log("Fatal: Failed to begin command buffer!\n");
+		assert(result == VK_SUCCESS);
+	}
+
+	VkClearValue clear_color{ {{0.0f, 0.0f, 0.0f, 1.0f}} };
+
+	VkRenderPassBeginInfo render_pass_info{
+		.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+		.renderPass = context.render_pass,
+		.framebuffer = context.swapchain_framebuffers[image_index],
+		.renderArea = { {0, 0}, context.swapchain_image_extent },
+		.clearValueCount = 1,
+		.pClearValues = &clear_color,
+	};
+
+	vkCmdBeginRenderPass(command_buffer, &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
+
+	vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context.graphics_pipeline);
+
+	VkBuffer vertex_buffers[] = { context.vertex_buffer };
+	VkDeviceSize offsets[] = { 0 };
+	vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers, offsets);
+	vkCmdBindIndexBuffer(command_buffer, context.index_buffer, 0, VK_INDEX_TYPE_UINT16);
+
+	VkViewport viewport{
+		.x = 0.0f, .y = 0.0f,
+		.width = static_cast<float>(context.swapchain_image_extent.width),
+		.height = static_cast<float>(context.swapchain_image_extent.height),
+		.minDepth = 0.0f, .maxDepth = 1.0f
+	};
+	vkCmdSetViewport(command_buffer, 0, 1, &viewport);
+
+	VkRect2D scissor{
+		.offset = { 0, 0 },
+		.extent = context.swapchain_image_extent,
+	};
+	vkCmdSetScissor(command_buffer, 0, 1, &scissor);
+
+	vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context.pipeline_layout, 0, 1, &context.descriptor_sets[context.current_frame], 0, 0);
+
+	vkCmdDrawIndexed(command_buffer, sizeof(indices) / sizeof(indices[0]), 1, 0, 0, 0);
+
+	vkCmdEndRenderPass(command_buffer);
+
+	result = vkEndCommandBuffer(command_buffer);
+	if (VK_SUCCESS != result)
+	{
+		platform_log("Fatal: Failed to end command buffer!\n");
+		assert(VK_SUCCESS == result);
+	}
+
+	//
+	// submit the draw command
+	// 
 	VkSemaphore wait_semaphores[] = { context.image_available_semaphores[context.current_frame] };
 	VkSemaphore signal_semaphores[] = { context.render_finished_semaphores[context.current_frame] };
 	VkPipelineStageFlags wait_stages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
@@ -521,7 +533,9 @@ void draw_frame(Game_State *game_state)
 		assert(VK_SUCCESS == result);
 	}
 
-	// present the swap chain image
+	//
+	// Present the image
+	//
 	VkSwapchainKHR swapchains[] = { context.swapchain };
 	VkPresentInfoKHR present_info{
 		.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
