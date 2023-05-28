@@ -336,7 +336,7 @@ LRESULT CALLBACK main_window_callback(HWND w_handle, UINT message, WPARAM wparam
 		case WM_KEYUP:
 		case WM_SYSKEYUP:
 		{
-			platform_log("Keyboard Input cam in through a dispatch message!");
+			platform_log("Keyboard Input came in through a dispatch message!\n");
 		} break;
 
 		default:
@@ -409,9 +409,9 @@ internal_function void platform_process_events(Game_State *game_state, float del
 				WORD vk_code = LOWORD(message.wParam);
 				WORD key_flags = HIWORD(message.lParam);
 
-				//bool released = (key_flags & KF_UP) == KF_UP;
-				//bool is_down = !released;
-				//bool repeated = ((key_flags & KF_REPEAT) == KF_REPEAT) && !released;
+				bool released = (key_flags & KF_UP) == KF_UP;
+				bool is_down = !released;
+				bool repeated = ((key_flags & KF_REPEAT) == KF_REPEAT) && !released;
 				bool alt_down = (key_flags & KF_ALTDOWN) == KF_ALTDOWN;
 
 				// NOTE: holding down e.g. w and then while still holding w, holding down a will result in vkcode == a
@@ -419,13 +419,31 @@ internal_function void platform_process_events(Game_State *game_state, float del
 				// NOTE: to get only the first pressing of a button use: && is_down && !repeated
 
 				switch (vk_code) {
-					case VK_F4: 
-					{
+					case 'W': {
+						process_key_event(W, is_down);
+					} break;
+
+					case 'A': {
+						process_key_event(A, is_down);
+					} break;
+
+					case 'S': {
+						process_key_event(S, is_down);
+					} break;
+
+					case 'D': {
+						process_key_event(D, is_down);
+					} break;
+
+					case VK_ESCAPE: {
+						process_key_event(ESCAPE, is_down);
+					} break;
+
+					case VK_F4: {
 						if (alt_down) should_close = true;
 					} break;
 
-					default:
-					{
+					default: {
 						// do nothing
 					} break;
 				}
@@ -440,24 +458,7 @@ internal_function void platform_process_events(Game_State *game_state, float del
 	}
 
 	Event_Reader event_reader = {};
-	if (GetKeyState('W') & 0x8000) {
-		event_queue_add({ W, true }, &event_reader);
-	}
-	if (GetKeyState('A') & 0x8000) {
-		event_queue_add({ A, true }, &event_reader);
-	}
-	if (GetKeyState('S') & 0x8000) {
-		event_queue_add({ S, true }, &event_reader);
-	}
-	if (GetKeyState('D') & 0x8000) {
-		event_queue_add({ D, true }, &event_reader);
-	}
-	if (GetKeyState(VK_SPACE) & 0x8000) {
-		event_queue_add({ SPACE, true }, &event_reader);
-	}
-	if (GetKeyState(VK_ESCAPE) & 0x8000) {
-		event_queue_add({ ESCAPE, true }, &event_reader);
-	}
+	input_add_events(&event_reader);
 }
 
 File_Asset *platform_read_file(const char *file_path, uint32 *bytes_read)

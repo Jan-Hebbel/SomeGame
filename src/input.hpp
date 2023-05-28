@@ -13,6 +13,7 @@ enum Key_Code {
 	S = 4,
 	D = 5,
 	SPACE = 6,
+	KEY_CODE_AMOUNT = 7
 };
 
 struct Event { // @Incomplete: key_is_down is currently not needed; refactor and keep it or discard it?
@@ -24,6 +25,8 @@ struct Event_Reader { // typedef better? @Cleanup
 	int index;
 };
 
+void process_key_event(Key_Code key_code, bool is_down);
+void input_add_events(Event_Reader *event_reader);
 Event event_queue_next(Event_Reader *event_reader);
 void event_queue_add(Event new_event, Event_Reader *event_reader);
 void event_queue_clear();

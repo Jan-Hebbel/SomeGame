@@ -3,6 +3,19 @@
 #include "types.hpp"
 
 Event event_queue[EVENT_QUEUE_SIZE];
+bool keyboard_state[KEY_CODE_AMOUNT];
+
+void process_key_event(Key_Code key_code, bool is_down) {
+	keyboard_state[key_code] = is_down;
+}
+
+void input_add_events(Event_Reader *event_reader) {
+	for (int i = 0; i < KEY_CODE_AMOUNT; ++i) {
+		if (keyboard_state[i]) {
+			event_queue_add({ (Key_Code)i, true }, event_reader);
+		}
+	}
+}
 
 Event event_queue_next(Event_Reader *event_reader) {
 	Event dummy = { UNKNOWN, false };
