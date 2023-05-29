@@ -59,7 +59,13 @@ constexpr bool enable_validation_layers = false;
 
 global_variable constexpr uint MAX_FRAMES_IN_FLIGHT = 2;
 
+enum Buffer_Type {
+	VERTEX_BUFFER = 0,
+	INDEX_BUFFER = 1,
+};
+
 struct Render_Buffer {
+	Buffer_Type type;
 	VkBuffer buffer;
 	VkDeviceMemory memory;
 };
@@ -141,11 +147,6 @@ struct Uniform_Buffer_Object
 	Mat4 model;
 	Mat4 view;
 	Mat4 proj;
-};
-
-enum Buffer_Type {
-	VERTEX_BUFFER = 0,
-	INDEX_BUFFER = 1,
 };
 
 global_variable const uint16 indices[] = {
@@ -806,9 +807,9 @@ internal_function bool32 create_shader_module(const char *shader_file, VkShaderM
 	return GAME_SUCCESS;
 }
 
-void create_render_buffer(const void *elements, size_t size, Buffer_Type type, VkBuffer &buffer, VkDeviceMemory &memory) {
+void create_render_buffer(const void *elements, size_t size, Render_Buffer *render_buffer) {
 	VkBufferUsageFlagBits usage_type;
-	switch (type) {
+	switch (render_buffer->type) {
 		case VERTEX_BUFFER: {
 			usage_type = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
 			break;
@@ -819,7 +820,10 @@ void create_render_buffer(const void *elements, size_t size, Buffer_Type type, V
 			break;
 		}
 
-		default: return;
+		default: {
+			assert(render_buffer->type == VERTEX_BUFFER || render_buffer->type == INDEX_BUFFER);
+			break;
+		}
 	}
 
 	VkBuffer staging_buffer;
@@ -832,9 +836,9 @@ void create_render_buffer(const void *elements, size_t size, Buffer_Type type, V
 	memcpy(data, elements, size);
 	vkUnmapMemory(c.device, staging_buffer_memory);
 
-	create_buffer(static_cast<uint64_t>(size), VK_BUFFER_USAGE_TRANSFER_DST_BIT | usage_type, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, buffer, memory);
+	create_buffer(static_cast<uint64_t>(size), VK_BUFFER_USAGE_TRANSFER_DST_BIT | usage_type, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, render_buffer->buffer, render_buffer->memory);
 
-	copy_buffer(staging_buffer, buffer, size);
+	copy_buffer(staging_buffer, render_buffer->buffer, size);
 
 	vkDestroyBuffer(c.device, staging_buffer, 0);
 	vkFreeMemory(c.device, staging_buffer_memory, 0);
@@ -1506,6 +1510,8 @@ bool32 renderer_vulkan_init()
 	//
 	{
 		// Player
+		c.vertex_buffer[0].type = VERTEX_BUFFER;
+
 		const Vertex vertices[] = {
 			{.pos = {-0.5f, -0.5f}, .tex_coord = {0.0f, 0.0f}},
 			{.pos = { 0.5f, -0.5f}, .tex_coord = {1.0f, 0.0f}},
@@ -1513,9 +1519,11 @@ bool32 renderer_vulkan_init()
 			{.pos = {-0.5f,  0.5f}, .tex_coord = {0.0f, 1.0f}},
 		};
 
-		create_render_buffer(vertices, sizeof(vertices), VERTEX_BUFFER, c.vertex_buffer[0].buffer, c.vertex_buffer[0].memory);
+		create_render_buffer(vertices, sizeof(vertices), &c.vertex_buffer[0]);
 
 		// Background
+		c.vertex_buffer[1].type = VERTEX_BUFFER;
+
 		const Vertex bg_vertices[] = {
 			{.pos = {-1.0f, -1.0f}, .tex_coord = {0.0f, 0.0f}},
 			{.pos = { 1.0f, -1.0f}, .tex_coord = {1.0f, 0.0f}},
@@ -1523,7 +1531,7 @@ bool32 renderer_vulkan_init()
 			{.pos = {-1.0f,  1.0f}, .tex_coord = {0.0f, 1.0f}},
 		};
 
-		create_render_buffer(bg_vertices, sizeof(bg_vertices), VERTEX_BUFFER, c.vertex_buffer[1].buffer, c.vertex_buffer[1].memory);
+		create_render_buffer(bg_vertices, sizeof(bg_vertices), &c.vertex_buffer[1]);
 	}
 
 	//
@@ -1531,10 +1539,14 @@ bool32 renderer_vulkan_init()
 	//
 	{
 		// Player
-		create_render_buffer(indices, sizeof(indices), INDEX_BUFFER, c.index_buffer[0].buffer, c.index_buffer[0].memory);
+		c.index_buffer[0].type = INDEX_BUFFER;
+
+		create_render_buffer(indices, sizeof(indices), &c.index_buffer[0]);
 
 		// Background
-		create_render_buffer(indices, sizeof(indices), INDEX_BUFFER, c.index_buffer[1].buffer, c.index_buffer[1].memory);
+		c.index_buffer[1].type = INDEX_BUFFER;
+
+		create_render_buffer(indices, sizeof(indices), &c.index_buffer[1]);
 	}
 
 
