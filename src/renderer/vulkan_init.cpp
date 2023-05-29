@@ -59,7 +59,25 @@ constexpr bool enable_validation_layers = false;
 
 global_variable constexpr uint MAX_FRAMES_IN_FLIGHT = 2;
 
-struct GameVulkanContext
+struct Render_Buffer {
+	VkBuffer buffer;
+	VkDeviceMemory memory;
+};
+
+struct Uniform_Buffers {
+	VkBuffer buffer[MAX_FRAMES_IN_FLIGHT];
+	VkDeviceMemory memory[MAX_FRAMES_IN_FLIGHT];
+	void *mapped[MAX_FRAMES_IN_FLIGHT];
+};
+
+struct Texture {
+	VkImage image;
+	VkDeviceMemory memory;
+	VkImageView image_view;
+	VkSampler sampler;
+};
+
+struct Global_Vulkan_Context
 {
 	VkInstance instance;
 	VkDebugUtilsMessengerEXT debug_callback;
@@ -86,20 +104,13 @@ struct GameVulkanContext
 	std::vector<VkSemaphore> render_finished_semaphores;
 	std::vector<VkFence> in_flight_fences;
 	uint32 current_frame = 0;
-	VkBuffer vertex_buffer;
-	VkDeviceMemory vertex_buffer_memory;
-	VkBuffer index_buffer;
-	VkDeviceMemory index_buffer_memory;
-	VkBuffer uniform_buffers[MAX_FRAMES_IN_FLIGHT];
-	VkDeviceMemory uniform_buffers_memory[MAX_FRAMES_IN_FLIGHT];
-	void *uniform_buffers_mapped[MAX_FRAMES_IN_FLIGHT];
-	VkImage texture_image;
-	VkDeviceMemory texture_image_memory;
-	VkImageView texture_image_view;
-	VkSampler texture_sampler;
+	Render_Buffer vertex_buffer[2];
+	Render_Buffer index_buffer[2];
+	Uniform_Buffers uniform_buffers[2];
+	Texture texture[2];
 };
 
-global_variable GameVulkanContext context{};
+global_variable Global_Vulkan_Context c{};
 
 // TODO: temporary solution
 global_variable unsigned char ttf_buffer[1 << 20];
@@ -132,11 +143,16 @@ struct Uniform_Buffer_Object
 	Mat4 proj;
 };
 
+enum Buffer_Type {
+	VERTEX_BUFFER = 0,
+	INDEX_BUFFER = 1,
+};
+
 global_variable const Vertex vertices[] = {
 	{.pos = {-0.5f, -0.5f}, .tex_coord = {0.0f, 0.0f}},
-	{.pos = {0.5f, -0.5f}, .tex_coord = {1.0f, 0.0f}},
-	{.pos = {0.5f, 0.5f}, .tex_coord = {1.0f, 1.0f}},
-	{.pos = {-0.5f, 0.5f}, .tex_coord = {0.0f, 1.0f}},
+	{.pos = { 0.5f, -0.5f}, .tex_coord = {1.0f, 0.0f}},
+	{.pos = { 0.5f,  0.5f}, .tex_coord = {1.0f, 1.0f}},
+	{.pos = {-0.5f,  0.5f}, .tex_coord = {0.0f, 1.0f}},
 };
 
 global_variable const uint16 indices[] = {
@@ -152,35 +168,35 @@ VKAPI_ATTR VkBool32 VKAPI_CALL vulkan_debug_callback(VkDebugUtilsMessageSeverity
 
 void cleanup_swapchain()
 {
-	for (size_t i = 0; i < context.swapchain_framebuffers.size(); ++i)
+	for (size_t i = 0; i < c.swapchain_framebuffers.size(); ++i)
 	{
-		vkDestroyFramebuffer(context.device, context.swapchain_framebuffers[i], 0);
+		vkDestroyFramebuffer(c.device, c.swapchain_framebuffers[i], 0);
 	}
 
-	for (size_t i = 0; i < context.swapchain_image_views.size(); ++i)
+	for (size_t i = 0; i < c.swapchain_image_views.size(); ++i)
 	{
-		vkDestroyImageView(context.device, context.swapchain_image_views[i], 0);
+		vkDestroyImageView(c.device, c.swapchain_image_views[i], 0);
 	}
 
-	vkDestroySwapchainKHR(context.device, context.swapchain, 0);
+	vkDestroySwapchainKHR(c.device, c.swapchain, 0);
 }
 
 SwapchainDetails get_swapchain_support_details(VkPhysicalDevice physical_device)
 {
 	SwapchainDetails swapchain_support{};
 	uint32_t format_count;
-	vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device, context.surface, &format_count, 0);
+	vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device, c.surface, &format_count, 0);
 	if (format_count > 0)
 	{
 		swapchain_support.surface_formats.resize(format_count);
-		vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device, context.surface, &format_count, swapchain_support.surface_formats.data());
+		vkGetPhysicalDeviceSurfaceFormatsKHR(physical_device, c.surface, &format_count, swapchain_support.surface_formats.data());
 	}
 	uint32_t present_mode_count;
-	vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device, context.surface, &present_mode_count, 0);
+	vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device, c.surface, &present_mode_count, 0);
 	if (present_mode_count > 0)
 	{
 		swapchain_support.present_modes.resize(present_mode_count);
-		vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device, context.surface, &present_mode_count, swapchain_support.present_modes.data());
+		vkGetPhysicalDeviceSurfacePresentModesKHR(physical_device, c.surface, &present_mode_count, swapchain_support.present_modes.data());
 	}
 	return swapchain_support;
 }
@@ -210,7 +226,7 @@ QueueFamilyIndices get_queue_family_indices(VkPhysicalDevice physical_device)
 		}
 
 		VkBool32 present_support = false;
-		vkGetPhysicalDeviceSurfaceSupportKHR(physical_device, i, context.surface, &present_support);
+		vkGetPhysicalDeviceSurfaceSupportKHR(physical_device, i, c.surface, &present_support);
 		if (present_support)
 		{
 			queue_family_indices.present_family = i;
@@ -229,15 +245,15 @@ QueueFamilyIndices get_queue_family_indices(VkPhysicalDevice physical_device)
 
 void create_swapchain()
 {
-	SwapchainDetails swapchain_support = get_swapchain_support_details(context.physical_device);
-	QueueFamilyIndices queue_family_indices = get_queue_family_indices(context.physical_device);
+	SwapchainDetails swapchain_support = get_swapchain_support_details(c.physical_device);
+	QueueFamilyIndices queue_family_indices = get_queue_family_indices(c.physical_device);
 
 	VkSurfaceCapabilitiesKHR capabilities{};
-	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(context.physical_device, context.surface, &capabilities);
+	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(c.physical_device, c.surface, &capabilities);
 
 	VkSwapchainCreateInfoKHR swapchain_info{};
 	swapchain_info.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-	swapchain_info.surface = context.surface;
+	swapchain_info.surface = c.surface;
 	// choose image count
 	uint32 min_image_count = capabilities.minImageCount + 1; // this will most likely equal 3
 	if (min_image_count > capabilities.maxImageCount && capabilities.maxImageCount != 0)
@@ -310,32 +326,32 @@ void create_swapchain()
 	swapchain_info.clipped = VK_TRUE;
 	swapchain_info.oldSwapchain = VK_NULL_HANDLE;
 
-	VkResult result = vkCreateSwapchainKHR(context.device, &swapchain_info, 0, &context.swapchain);
+	VkResult result = vkCreateSwapchainKHR(c.device, &swapchain_info, 0, &c.swapchain);
 	if (VK_SUCCESS != result)
 	{
 		platform_log("Failed to create swapchain!\n");
 		assert(VK_SUCCESS == result);
 	}
 
-	vkGetSwapchainImagesKHR(context.device, context.swapchain, &min_image_count, 0);
-	context.swapchain_images.resize(min_image_count);
-	vkGetSwapchainImagesKHR(context.device, context.swapchain, &min_image_count, context.swapchain_images.data());
+	vkGetSwapchainImagesKHR(c.device, c.swapchain, &min_image_count, 0);
+	c.swapchain_images.resize(min_image_count);
+	vkGetSwapchainImagesKHR(c.device, c.swapchain, &min_image_count, c.swapchain_images.data());
 
-	context.swapchain_image_format = swapchain_info.imageFormat;
-	context.swapchain_image_extent = swapchain_info.imageExtent;
+	c.swapchain_image_format = swapchain_info.imageFormat;
+	c.swapchain_image_extent = swapchain_info.imageExtent;
 }
 
 void create_image_views()
 {
-	context.swapchain_image_views.resize(context.swapchain_images.size());
+	c.swapchain_image_views.resize(c.swapchain_images.size());
 
-	for (uint i = 0; i < context.swapchain_image_views.size(); ++i)
+	for (uint i = 0; i < c.swapchain_image_views.size(); ++i)
 	{
 		VkImageViewCreateInfo image_view_info{};
 		image_view_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-		image_view_info.image = context.swapchain_images[i];
+		image_view_info.image = c.swapchain_images[i];
 		image_view_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-		image_view_info.format = context.swapchain_image_format;
+		image_view_info.format = c.swapchain_image_format;
 		image_view_info.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
 		image_view_info.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
 		image_view_info.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
@@ -346,7 +362,7 @@ void create_image_views()
 		image_view_info.subresourceRange.baseArrayLayer = 0;
 		image_view_info.subresourceRange.layerCount = 1;
 
-		VkResult result = vkCreateImageView(context.device, &image_view_info, 0, &context.swapchain_image_views[i]);
+		VkResult result = vkCreateImageView(c.device, &image_view_info, 0, &c.swapchain_image_views[i]);
 		if (VK_SUCCESS != result)
 		{
 			platform_log("Fatal: Failed to create image view!\n");
@@ -357,25 +373,25 @@ void create_image_views()
 
 void create_framebuffers()
 {
-	context.swapchain_framebuffers.resize(context.swapchain_image_views.size());
+	c.swapchain_framebuffers.resize(c.swapchain_image_views.size());
 
-	for (size_t i = 0; i < context.swapchain_image_views.size(); ++i)
+	for (size_t i = 0; i < c.swapchain_image_views.size(); ++i)
 	{
 		VkImageView attachments[] = {
-			context.swapchain_image_views[i],
+			c.swapchain_image_views[i],
 		};
 
 		VkFramebufferCreateInfo framebuffer_info{
 			.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-			.renderPass = context.render_pass,
+			.renderPass = c.render_pass,
 			.attachmentCount = 1,
 			.pAttachments = attachments,
-			.width = context.swapchain_image_extent.width,
-			.height = context.swapchain_image_extent.height,
+			.width = c.swapchain_image_extent.width,
+			.height = c.swapchain_image_extent.height,
 			.layers = 1,
 		};
 
-		VkResult result = vkCreateFramebuffer(context.device, &framebuffer_info, 0, &context.swapchain_framebuffers[i]);
+		VkResult result = vkCreateFramebuffer(c.device, &framebuffer_info, 0, &c.swapchain_framebuffers[i]);
 		if (VK_SUCCESS != result)
 		{
 			platform_log("Fatal: Failed to create framebuffer!\n");
@@ -386,7 +402,7 @@ void create_framebuffers()
 
 void recreate_swapchain()
 {
-	vkDeviceWaitIdle(context.device);
+	vkDeviceWaitIdle(c.device);
 
 	cleanup_swapchain();
 
@@ -400,8 +416,8 @@ void draw_frame(Game_State *game_state)
 	// 
 	// Wait for the previous frame to finish.
 	//
-	vkWaitForFences(context.device, 1, &context.in_flight_fences[context.current_frame], VK_TRUE, UINT64_MAX);
-	vkResetFences(context.device, 1, &context.in_flight_fences[context.current_frame]);
+	vkWaitForFences(c.device, 1, &c.in_flight_fences[c.current_frame], VK_TRUE, UINT64_MAX);
+	vkResetFences(c.device, 1, &c.in_flight_fences[c.current_frame]);
 
 	//
 	// Recreate the swapchain if the swapchain is outdated (resizing or minimizing window).
@@ -416,7 +432,7 @@ void draw_frame(Game_State *game_state)
 	// Acquire an image from the swapchain.
 	//
 	uint32 image_index;
-	VkResult result = vkAcquireNextImageKHR(context.device, context.swapchain, UINT64_MAX, context.image_available_semaphores[context.current_frame], VK_NULL_HANDLE, &image_index);
+	VkResult result = vkAcquireNextImageKHR(c.device, c.swapchain, UINT64_MAX, c.image_available_semaphores[c.current_frame], VK_NULL_HANDLE, &image_index);
 	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
 	{
 		swapchain_outdated = true;
@@ -432,19 +448,19 @@ void draw_frame(Game_State *game_state)
 	// Update Uniform Buffers. (@Performance: Most efficient way to pass a frequently changing small amount of data to the shader are push constants)
 	//
 	float scale = 6.0f;
-	float aspect = (float)context.swapchain_image_extent.width / (float)context.swapchain_image_extent.height;
+	float aspect = (float)c.swapchain_image_extent.width / (float)c.swapchain_image_extent.height;
 	Uniform_Buffer_Object ubo{
 		.model = transpose(translate({game_state->player.position.x, game_state->player.position.y, 0})),
 		.view = identity(),
 		// NOTE: Transposing here because my math library stores matrices in row major notation.
 		.proj = transpose(orthographic_projection(-aspect * scale, aspect * scale, -scale, scale, 0.1f, 2.0f)),
 	};
-	memcpy(context.uniform_buffers_mapped[context.current_frame], &ubo, sizeof(ubo));
+	memcpy(c.uniform_buffers[0].mapped[c.current_frame], &ubo, sizeof(ubo));
 
 	// 
 	// Draw. (Record command buffer that draws image.)
 	//
-	VkCommandBuffer command_buffer = context.command_buffers[context.current_frame];
+	VkCommandBuffer command_buffer = c.command_buffers[c.current_frame];
 	vkResetCommandBuffer(command_buffer, 0);
 
 	VkCommandBufferBeginInfo begin_info{
@@ -462,37 +478,37 @@ void draw_frame(Game_State *game_state)
 
 	VkRenderPassBeginInfo render_pass_info{
 		.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-		.renderPass = context.render_pass,
-		.framebuffer = context.swapchain_framebuffers[image_index],
-		.renderArea = { {0, 0}, context.swapchain_image_extent },
+		.renderPass = c.render_pass,
+		.framebuffer = c.swapchain_framebuffers[image_index],
+		.renderArea = { {0, 0}, c.swapchain_image_extent },
 		.clearValueCount = 1,
 		.pClearValues = &clear_color,
 	};
 
 	vkCmdBeginRenderPass(command_buffer, &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
 
-	vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context.graphics_pipeline);
-
-	VkBuffer vertex_buffers[] = { context.vertex_buffer };
-	VkDeviceSize offsets[] = { 0 };
-	vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers, offsets);
-	vkCmdBindIndexBuffer(command_buffer, context.index_buffer, 0, VK_INDEX_TYPE_UINT16);
+	vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, c.graphics_pipeline);
 
 	VkViewport viewport{
 		.x = 0.0f, .y = 0.0f,
-		.width = static_cast<float>(context.swapchain_image_extent.width),
-		.height = static_cast<float>(context.swapchain_image_extent.height),
+		.width = static_cast<float>(c.swapchain_image_extent.width),
+		.height = static_cast<float>(c.swapchain_image_extent.height),
 		.minDepth = 0.0f, .maxDepth = 1.0f
 	};
 	vkCmdSetViewport(command_buffer, 0, 1, &viewport);
 
 	VkRect2D scissor{
 		.offset = { 0, 0 },
-		.extent = context.swapchain_image_extent,
+		.extent = c.swapchain_image_extent,
 	};
 	vkCmdSetScissor(command_buffer, 0, 1, &scissor);
 
-	vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, context.pipeline_layout, 0, 1, &context.descriptor_sets[context.current_frame], 0, 0);
+	VkBuffer vertex_buffers[] = { c.vertex_buffer[0].buffer };
+	VkDeviceSize offsets[] = { 0 };
+	vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers, offsets);
+	vkCmdBindIndexBuffer(command_buffer, c.index_buffer[0].buffer, 0, VK_INDEX_TYPE_UINT16);
+
+	vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, c.pipeline_layout, 0, 1, &c.descriptor_sets[c.current_frame], 0, 0);
 
 	vkCmdDrawIndexed(command_buffer, sizeof(indices) / sizeof(indices[0]), 1, 0, 0, 0);
 
@@ -508,8 +524,8 @@ void draw_frame(Game_State *game_state)
 	//
 	// Submit the draw command.
 	// 
-	VkSemaphore wait_semaphores[] = { context.image_available_semaphores[context.current_frame] };
-	VkSemaphore signal_semaphores[] = { context.render_finished_semaphores[context.current_frame] };
+	VkSemaphore wait_semaphores[] = { c.image_available_semaphores[c.current_frame] };
+	VkSemaphore signal_semaphores[] = { c.render_finished_semaphores[c.current_frame] };
 	VkPipelineStageFlags wait_stages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
 	VkSubmitInfo submit_info{
 		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
@@ -517,11 +533,11 @@ void draw_frame(Game_State *game_state)
 		.pWaitSemaphores = wait_semaphores,
 		.pWaitDstStageMask = wait_stages,
 		.commandBufferCount = 1,
-		.pCommandBuffers = &context.command_buffers[context.current_frame],
+		.pCommandBuffers = &c.command_buffers[c.current_frame],
 		.signalSemaphoreCount = 1,
 		.pSignalSemaphores = signal_semaphores
 	};
-	result = vkQueueSubmit(context.graphics_queue, 1, &submit_info, context.in_flight_fences[context.current_frame]);
+	result = vkQueueSubmit(c.graphics_queue, 1, &submit_info, c.in_flight_fences[c.current_frame]);
 	if (VK_SUCCESS != result)
 	{
 		platform_log("Fatal: Failed to submit to queue!\n");
@@ -531,7 +547,7 @@ void draw_frame(Game_State *game_state)
 	//
 	// Present the image.
 	//
-	VkSwapchainKHR swapchains[] = { context.swapchain };
+	VkSwapchainKHR swapchains[] = { c.swapchain };
 	VkPresentInfoKHR present_info{
 		.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
 		.waitSemaphoreCount = 1,
@@ -540,7 +556,7 @@ void draw_frame(Game_State *game_state)
 		.pSwapchains = swapchains,
 		.pImageIndices = &image_index,
 	};
-	result = vkQueuePresentKHR(context.present_queue, &present_info);
+	result = vkQueuePresentKHR(c.present_queue, &present_info);
 	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
 	{
 		swapchain_outdated = true;
@@ -552,13 +568,13 @@ void draw_frame(Game_State *game_state)
 		assert(VK_SUCCESS == result);
 	}
 
-	context.current_frame = (context.current_frame + 1) % MAX_FRAMES_IN_FLIGHT;
+	c.current_frame = (c.current_frame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
 bool find_memory_type(uint32 type_filter, VkMemoryPropertyFlags property_flags, uint32 *index)
 {
 	VkPhysicalDeviceMemoryProperties memory_properties{};
-	vkGetPhysicalDeviceMemoryProperties(context.physical_device, &memory_properties);
+	vkGetPhysicalDeviceMemoryProperties(c.physical_device, &memory_properties);
 
 	for (uint32 i = 0; i < memory_properties.memoryTypeCount; ++i)
 	{
@@ -581,7 +597,7 @@ void create_buffer(VkDeviceSize size, VkBufferUsageFlags usage_flags, VkMemoryPr
 		.sharingMode = VK_SHARING_MODE_EXCLUSIVE,
 	};
 
-	VkResult result = vkCreateBuffer(context.device, &buffer_info, 0, &buffer);
+	VkResult result = vkCreateBuffer(c.device, &buffer_info, 0, &buffer);
 	if (result != VK_SUCCESS)
 	{
 		platform_log("Fatal: Failed to create buffer!\n");
@@ -589,7 +605,7 @@ void create_buffer(VkDeviceSize size, VkBufferUsageFlags usage_flags, VkMemoryPr
 	}
 
 	VkMemoryRequirements memory_requirements{};
-	vkGetBufferMemoryRequirements(context.device, buffer, &memory_requirements);
+	vkGetBufferMemoryRequirements(c.device, buffer, &memory_requirements);
 	uint32 memory_type_index;
 	bool res = find_memory_type(memory_requirements.memoryTypeBits, property_flags, &memory_type_index);
 	if (!res)
@@ -605,27 +621,27 @@ void create_buffer(VkDeviceSize size, VkBufferUsageFlags usage_flags, VkMemoryPr
 
 	// NOTE: don't call vkAllocateMemory for every individual buffer, the number of allocations is limited; instead when allocating memory for a large number of objects, create a custom allocator that splits up a single allocation among many different objects by using the offset parameters
 	// NOTE: maybe go a step further (as driver developers recommend): also store multiple buffers like the vertex buffer and index buffer into a single VkBuffer and use offsets in commands like vkCmdBindVertexBuffers => more cache friendly @Performance
-	result = vkAllocateMemory(context.device, &alloc_info, 0, &memory);
+	result = vkAllocateMemory(c.device, &alloc_info, 0, &memory);
 	if (result != VK_SUCCESS)
 	{
 		platform_log("Fatal: Failed to allocate memory!\n");
 		assert(result == VK_SUCCESS);
 	}
 
-	vkBindBufferMemory(context.device, buffer, memory, 0);
+	vkBindBufferMemory(c.device, buffer, memory, 0);
 }
 
 VkCommandBuffer begin_single_time_commands()
 {
 	VkCommandBufferAllocateInfo alloc_info{
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-		.commandPool = context.command_pool,
+		.commandPool = c.command_pool,
 		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
 		.commandBufferCount = 1,
 	};
 
 	VkCommandBuffer command_buffer;
-	vkAllocateCommandBuffers(context.device, &alloc_info, &command_buffer);
+	vkAllocateCommandBuffers(c.device, &alloc_info, &command_buffer);
 
 	VkCommandBufferBeginInfo begin_info{
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -645,10 +661,10 @@ void end_single_time_commands(VkCommandBuffer command_buffer)
 		.commandBufferCount = 1,
 		.pCommandBuffers = &command_buffer,
 	};
-	vkQueueSubmit(context.graphics_queue, 1, &submit_info, VK_NULL_HANDLE);
-	vkQueueWaitIdle(context.graphics_queue); // @Speed @Performance; use vkWaitForFences
+	vkQueueSubmit(c.graphics_queue, 1, &submit_info, VK_NULL_HANDLE);
+	vkQueueWaitIdle(c.graphics_queue); // @Speed @Performance; use vkWaitForFences
 
-	vkFreeCommandBuffers(context.device, context.command_pool, 1, &command_buffer);
+	vkFreeCommandBuffers(c.device, c.command_pool, 1, &command_buffer);
 }
 
 void copy_buffer(VkBuffer src_buffer, VkBuffer dst_buffer, VkDeviceSize size)
@@ -680,14 +696,14 @@ void create_image(uint32 width, uint32 height, VkFormat format, VkImageTiling ti
 		.sharingMode = VK_SHARING_MODE_EXCLUSIVE,
 		.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
 	};
-	VkResult result = vkCreateImage(context.device, &image_info, 0, &image);
+	VkResult result = vkCreateImage(c.device, &image_info, 0, &image);
 	if (result != VK_SUCCESS)
 	{
 		platform_log("Failed to create a vulkan image for the texture!\n");
 		assert(result == VK_SUCCESS);
 	}
 	VkMemoryRequirements memory_requirements;
-	vkGetImageMemoryRequirements(context.device, image, &memory_requirements);
+	vkGetImageMemoryRequirements(c.device, image, &memory_requirements);
 
 	uint32_t index;
 	bool res = find_memory_type(memory_requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &index);
@@ -702,14 +718,14 @@ void create_image(uint32 width, uint32 height, VkFormat format, VkImageTiling ti
 		.memoryTypeIndex = index,
 	};
 
-	result = vkAllocateMemory(context.device, &alloc_info, 0, &image_memory);
+	result = vkAllocateMemory(c.device, &alloc_info, 0, &image_memory);
 	if (result != VK_SUCCESS)
 	{
 		platform_log("Failed to allocate memory for the vulkan image!\n");
 		assert(result == VK_SUCCESS);
 	}
 
-	vkBindImageMemory(context.device, image, image_memory, 0);
+	vkBindImageMemory(c.device, image, image_memory, 0);
 }
 
 void transition_image_layout(VkImage image, VkFormat format, VkImageLayout old_layout, VkImageLayout new_layout)
@@ -787,7 +803,7 @@ internal_function bool32 create_shader_module(const char *shader_file, VkShaderM
 		.pCode = reinterpret_cast<const uint32_t *>(shader_code),
 	};
 
-	VkResult result = vkCreateShaderModule(context.device, &shader_module_info, 0, shader_module);
+	VkResult result = vkCreateShaderModule(c.device, &shader_module_info, 0, shader_module);
 	platform_free_file(shader_code);
 	if (VK_SUCCESS != result)
 	{
@@ -795,6 +811,40 @@ internal_function bool32 create_shader_module(const char *shader_file, VkShaderM
 	}
 
 	return GAME_SUCCESS;
+}
+
+void create_render_buffer(const void *vertices, size_t size, Buffer_Type type, VkBuffer &buffer, VkDeviceMemory &memory) {
+	VkBufferUsageFlagBits usage_type;
+	switch (type) {
+		case VERTEX_BUFFER: {
+			usage_type = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+			break;
+		}
+
+		case INDEX_BUFFER: {
+			usage_type = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+			break;
+		}
+
+		default: return;
+	}
+
+	VkBuffer staging_buffer;
+	VkDeviceMemory staging_buffer_memory;
+
+	create_buffer(static_cast<uint64_t>(size), VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, staging_buffer, staging_buffer_memory);
+
+	void *data;
+	vkMapMemory(c.device, staging_buffer_memory, 0, static_cast<uint64_t>(size), 0, &data);
+	memcpy(data, vertices, size);
+	vkUnmapMemory(c.device, staging_buffer_memory);
+
+	create_buffer(static_cast<uint64_t>(size), VK_BUFFER_USAGE_TRANSFER_DST_BIT | usage_type, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, buffer, memory);
+
+	copy_buffer(staging_buffer, buffer, size);
+
+	vkDestroyBuffer(c.device, staging_buffer, 0);
+	vkFreeMemory(c.device, staging_buffer_memory, 0);
 }
 
 bool32 renderer_vulkan_init()
@@ -904,7 +954,7 @@ bool32 renderer_vulkan_init()
 		instance_info.enabledExtensionCount = extension_count;
 		instance_info.ppEnabledExtensionNames = extensions;
 
-		VkResult result = vkCreateInstance(&instance_info, 0, &context.instance);
+		VkResult result = vkCreateInstance(&instance_info, 0, &c.instance);
 		if (VK_SUCCESS != result)
 		{
 			platform_log("Fatal: Failed to create vulkan instance!\n");
@@ -919,12 +969,12 @@ bool32 renderer_vulkan_init()
 		if (enable_validation_layers)
 		{
 			// load vkCreateDebugUtilsMessengerEXT
-			auto createDebugUtilsMessenger = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(context.instance, "vkCreateDebugUtilsMessengerEXT");
+			auto createDebugUtilsMessenger = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(c.instance, "vkCreateDebugUtilsMessengerEXT");
 
 			if (createDebugUtilsMessenger)
 			{
 				// successfully loaded
-				VkResult result = createDebugUtilsMessenger(context.instance, &messenger_info, 0, &context.debug_callback);
+				VkResult result = createDebugUtilsMessenger(c.instance, &messenger_info, 0, &c.debug_callback);
 				if (result != VK_SUCCESS)
 				{
 					platform_log("Failed to create debug callback! Continuing without validation layers.\n");
@@ -948,7 +998,7 @@ bool32 renderer_vulkan_init()
 		surface_info.hinstance = window_handles->hinstance;
 		surface_info.hwnd = window_handles->hwnd;
 
-		VkResult result = vkCreateWin32SurfaceKHR(context.instance, &surface_info, 0, &context.surface);
+		VkResult result = vkCreateWin32SurfaceKHR(c.instance, &surface_info, 0, &c.surface);
 		if (result != VK_SUCCESS)
 		{
 			platform_log("Fatal: Failed to create a win32 surface!\n");
@@ -961,7 +1011,7 @@ bool32 renderer_vulkan_init()
 	// pick physical device
 	{
 		uint32 physical_device_count = 0;
-		vkEnumeratePhysicalDevices(context.instance, &physical_device_count, 0);
+		vkEnumeratePhysicalDevices(c.instance, &physical_device_count, 0);
 
 		VkPhysicalDevice *physical_devices = (VkPhysicalDevice *)malloc(physical_device_count * sizeof(VkPhysicalDevice));
 		if (!physical_devices)
@@ -969,7 +1019,7 @@ bool32 renderer_vulkan_init()
 			platform_log("Fatal: Failed to allocate memory for all physical devices!\n");
 			return GAME_FAILURE;
 		}
-		vkEnumeratePhysicalDevices(context.instance, &physical_device_count, physical_devices);
+		vkEnumeratePhysicalDevices(c.instance, &physical_device_count, physical_devices);
 
 		// going through all physical devices and picking the one that is suitable for our needs
 		for (uint i = 0; i < physical_device_count; ++i)
@@ -1023,14 +1073,14 @@ bool32 renderer_vulkan_init()
 			if (queue_family_indices_is_complete && physical_device_properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU && all_device_extensions_supported && swapchain_supported)
 			{
 				// picking physical device here
-				context.physical_device = physical_device;
+				c.physical_device = physical_device;
 				break;
 			}
 		}
 
 		free(physical_devices);
 
-		if (context.physical_device == 0)
+		if (c.physical_device == 0)
 		{
 			platform_error_message_window("Error!", "Your device has no suitable Vulkan driver!");
 			return GAME_FAILURE;
@@ -1039,7 +1089,7 @@ bool32 renderer_vulkan_init()
 
 
 
-	QueueFamilyIndices queue_family_indices = get_queue_family_indices(context.physical_device);
+	QueueFamilyIndices queue_family_indices = get_queue_family_indices(c.physical_device);
 
 
 
@@ -1079,7 +1129,7 @@ bool32 renderer_vulkan_init()
 		device_info.ppEnabledExtensionNames = device_extensions;
 		device_info.pEnabledFeatures = &device_features;
 
-		VkResult result = vkCreateDevice(context.physical_device, &device_info, 0, &context.device);
+		VkResult result = vkCreateDevice(c.physical_device, &device_info, 0, &c.device);
 		if (result != VK_SUCCESS)
 		{
 			platform_log("Fatal: Failed to create logical device!\n");
@@ -1089,8 +1139,8 @@ bool32 renderer_vulkan_init()
 		free(queue_infos);
 
 		// get handle to graphics queue; these are the same since we chose a queue family that can do both
-		vkGetDeviceQueue(context.device, queue_family_indices.graphics_family.value(), 0, &context.graphics_queue);
-		vkGetDeviceQueue(context.device, queue_family_indices.present_family.value(), 0, &context.present_queue);
+		vkGetDeviceQueue(c.device, queue_family_indices.graphics_family.value(), 0, &c.graphics_queue);
+		vkGetDeviceQueue(c.device, queue_family_indices.present_family.value(), 0, &c.present_queue);
 	}
 
 
@@ -1112,7 +1162,7 @@ bool32 renderer_vulkan_init()
 	// create render pass
 	{
 		VkAttachmentDescription color_attachment_description{
-			.format = context.swapchain_image_format,
+			.format = c.swapchain_image_format,
 			.samples = VK_SAMPLE_COUNT_1_BIT,
 			.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
 			.storeOp = VK_ATTACHMENT_STORE_OP_STORE,
@@ -1152,7 +1202,7 @@ bool32 renderer_vulkan_init()
 			.pDependencies = &dependency,
 		};
 
-		VkResult result = vkCreateRenderPass(context.device, &render_pass_info, 0, &context.render_pass);
+		VkResult result = vkCreateRenderPass(c.device, &render_pass_info, 0, &c.render_pass);
 		if (result != VK_SUCCESS)
 		{
 			platform_log("Fatal: Failed to create render pass!\n");
@@ -1186,7 +1236,7 @@ bool32 renderer_vulkan_init()
 			.pBindings = bindings,
 		};
 
-		VkResult result = vkCreateDescriptorSetLayout(context.device, &layout_info, 0, &context.descriptor_set_layout);
+		VkResult result = vkCreateDescriptorSetLayout(c.device, &layout_info, 0, &c.descriptor_set_layout);
 		if (VK_SUCCESS != result)
 		{
 			platform_log("Fatal: Failed to create descriptor set layout!\n");
@@ -1312,10 +1362,10 @@ bool32 renderer_vulkan_init()
 		VkPipelineLayoutCreateInfo pipeline_layout_info{
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
 			.setLayoutCount = 1,
-			.pSetLayouts = &context.descriptor_set_layout,
+			.pSetLayouts = &c.descriptor_set_layout,
 		};
 
-		VkResult result = vkCreatePipelineLayout(context.device, &pipeline_layout_info, 0, &context.pipeline_layout);
+		VkResult result = vkCreatePipelineLayout(c.device, &pipeline_layout_info, 0, &c.pipeline_layout);
 		if (result != VK_SUCCESS)
 		{
 			platform_log("Fatal: Failed to create pipeline layout!\n");
@@ -1333,20 +1383,20 @@ bool32 renderer_vulkan_init()
 			.pMultisampleState = &multisampling,
 			.pColorBlendState = &color_blending,
 			.pDynamicState = &dynamic_state_info,
-			.layout = context.pipeline_layout,
-			.renderPass = context.render_pass,
+			.layout = c.pipeline_layout,
+			.renderPass = c.render_pass,
 			.subpass = 0,
 		};
 
-		result = vkCreateGraphicsPipelines(context.device, VK_NULL_HANDLE, 1, &pipeline_info, 0, &context.graphics_pipeline);
+		result = vkCreateGraphicsPipelines(c.device, VK_NULL_HANDLE, 1, &pipeline_info, 0, &c.graphics_pipeline);
 		if (result != VK_SUCCESS)
 		{
 			platform_log("Fatal: Failed to create graphics pipelines!\n");
 			return GAME_FAILURE;
 		}
 
-		vkDestroyShaderModule(context.device, vertex_shader_module, 0);
-		vkDestroyShaderModule(context.device, fragment_shader_module, 0);
+		vkDestroyShaderModule(c.device, vertex_shader_module, 0);
+		vkDestroyShaderModule(c.device, fragment_shader_module, 0);
 	}
 
 
@@ -1366,7 +1416,7 @@ bool32 renderer_vulkan_init()
 			.queueFamilyIndex = queue_family_indices.graphics_family.value(),
 		};
 
-		VkResult result = vkCreateCommandPool(context.device, &pool_info, 0, &context.command_pool);
+		VkResult result = vkCreateCommandPool(c.device, &pool_info, 0, &c.command_pool);
 		if (result != VK_SUCCESS)
 		{
 			platform_log("Fatal: Failed to create command pool!\n");
@@ -1379,7 +1429,7 @@ bool32 renderer_vulkan_init()
 	// create texture image
 	{
 		int width, height, channels;
-		stbi_uc *pixels = stbi_load("res/textures/knight.png", &width, &height, &channels, STBI_rgb_alpha);
+		stbi_uc *pixels = stbi_load("res/textures/knight_1400.png", &width, &height, &channels, STBI_rgb_alpha);
 		VkDeviceSize image_size = width * height * 4;
 		if (!pixels) 
 		{
@@ -1393,21 +1443,21 @@ bool32 renderer_vulkan_init()
 		create_buffer(image_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, staging_buffer, staging_buffer_memory);
 
 		void *data;
-		vkMapMemory(context.device, staging_buffer_memory, 0, image_size, 0, &data);
+		vkMapMemory(c.device, staging_buffer_memory, 0, image_size, 0, &data);
 		memcpy(data, pixels, static_cast<size_t>(image_size));
-		vkUnmapMemory(context.device, staging_buffer_memory);
+		vkUnmapMemory(c.device, staging_buffer_memory);
 		stbi_image_free(pixels);
 
-		create_image(width, height, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, context.texture_image, context.texture_image_memory);
+		create_image(width, height, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, c.texture[0].image, c.texture[0].memory);
 
-		transition_image_layout(context.texture_image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+		transition_image_layout(c.texture[0].image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
-		copy_buffer_to_image(staging_buffer, context.texture_image, static_cast<uint32_t>(width), static_cast<uint32_t>(height));
+		copy_buffer_to_image(staging_buffer, c.texture[0].image, static_cast<uint32_t>(width), static_cast<uint32_t>(height));
 
-		transition_image_layout(context.texture_image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+		transition_image_layout(c.texture[0].image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
-		vkDestroyBuffer(context.device, staging_buffer, 0);
-		vkFreeMemory(context.device, staging_buffer_memory, 0);
+		vkDestroyBuffer(c.device, staging_buffer, 0);
+		vkFreeMemory(c.device, staging_buffer_memory, 0);
 	}
 
 
@@ -1416,12 +1466,12 @@ bool32 renderer_vulkan_init()
 	{
 		VkImageViewCreateInfo view_info{
 			.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-			.image = context.texture_image,
+			.image = c.texture[0].image,
 			.viewType = VK_IMAGE_VIEW_TYPE_2D,
 			.format = VK_FORMAT_R8G8B8A8_SRGB,
 			.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 },
 		};
-		VkResult result = vkCreateImageView(context.device, &view_info, 0, &context.texture_image_view);
+		VkResult result = vkCreateImageView(c.device, &view_info, 0, &c.texture[0].image_view);
 		if (result != VK_SUCCESS)
 		{
 			platform_log("Fatal: Failed to create texture image views!\n");
@@ -1450,7 +1500,7 @@ bool32 renderer_vulkan_init()
 			.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
 			.unnormalizedCoordinates = VK_FALSE,
 		};
-		VkResult result = vkCreateSampler(context.device, &sampler_info, 0, &context.texture_sampler);
+		VkResult result = vkCreateSampler(c.device, &sampler_info, 0, &c.texture[0].sampler);
 		if (result != VK_SUCCESS)
 		{
 			platform_log("Fatal: Failed to create a sampler!\n");
@@ -1458,52 +1508,18 @@ bool32 renderer_vulkan_init()
 		}
 	}
 
-
-
+	//
 	// create vertex buffer
+	//
 	{
-		size_t buffer_size = sizeof(vertices);
-
-		VkBuffer staging_buffer;
-		VkDeviceMemory staging_buffer_memory;
-
-		create_buffer(static_cast<uint64_t>(buffer_size), VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, staging_buffer, staging_buffer_memory);
-
-		void *data;
-		vkMapMemory(context.device, staging_buffer_memory, 0, static_cast<uint64_t>(buffer_size), 0, &data);
-		memcpy(data, vertices, buffer_size);
-		vkUnmapMemory(context.device, staging_buffer_memory);
-
-		create_buffer(static_cast<uint64_t>(buffer_size), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, context.vertex_buffer, context.vertex_buffer_memory);
-
-		copy_buffer(staging_buffer, context.vertex_buffer, buffer_size);
-
-		vkDestroyBuffer(context.device, staging_buffer, 0);
-		vkFreeMemory(context.device, staging_buffer_memory, 0);
+		create_render_buffer(vertices, sizeof(vertices), VERTEX_BUFFER, c.vertex_buffer[0].buffer, c.vertex_buffer[0].memory);
 	}
 
-
-
+	//
 	// create index buffer
+	//
 	{
-		size_t buffer_size = sizeof(indices);
-
-		VkBuffer staging_buffer;
-		VkDeviceMemory staging_buffer_memory;
-
-		create_buffer(static_cast<uint64_t>(buffer_size), VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, staging_buffer, staging_buffer_memory);
-
-		void *data;
-		vkMapMemory(context.device, staging_buffer_memory, 0, static_cast<uint64_t>(buffer_size), 0, &data);
-		memcpy(data, indices, buffer_size);
-		vkUnmapMemory(context.device, staging_buffer_memory);
-
-		create_buffer(static_cast<uint64_t>(buffer_size), VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, context.index_buffer, context.index_buffer_memory);
-
-		copy_buffer(staging_buffer, context.index_buffer, buffer_size);
-
-		vkDestroyBuffer(context.device, staging_buffer, 0);
-		vkFreeMemory(context.device, staging_buffer_memory, 0);
+		create_render_buffer(indices, sizeof(indices), INDEX_BUFFER, c.index_buffer[0].buffer, c.index_buffer[0].memory);
 	}
 
 
@@ -1513,9 +1529,9 @@ bool32 renderer_vulkan_init()
 		VkDeviceSize buffer_size = sizeof(Uniform_Buffer_Object);
 		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
 		{
-			create_buffer(buffer_size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, context.uniform_buffers[i], context.uniform_buffers_memory[i]);
+			create_buffer(buffer_size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, c.uniform_buffers[0].buffer[i], c.uniform_buffers[0].memory[i]);
 
-			vkMapMemory(context.device, context.uniform_buffers_memory[i], 0, buffer_size, 0, &context.uniform_buffers_mapped[i]);
+			vkMapMemory(c.device, c.uniform_buffers[0].memory[i], 0, buffer_size, 0, &c.uniform_buffers[0].mapped[i]);
 		}
 	}
 
@@ -1541,7 +1557,7 @@ bool32 renderer_vulkan_init()
 			.pPoolSizes = pool_sizes,
 		};
 
-		VkResult result = vkCreateDescriptorPool(context.device, &pool_info, 0, &context.descriptor_pool);
+		VkResult result = vkCreateDescriptorPool(c.device, &pool_info, 0, &c.descriptor_pool);
 		if (VK_SUCCESS != result)
 		{
 			platform_log("Fatal: Failed to create descriptor pool!\n");
@@ -1556,16 +1572,16 @@ bool32 renderer_vulkan_init()
 		VkDescriptorSetLayout layouts[MAX_FRAMES_IN_FLIGHT];
 		for (uint32 i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
 		{
-			layouts[i] = context.descriptor_set_layout;
+			layouts[i] = c.descriptor_set_layout;
 		}
 		VkDescriptorSetAllocateInfo alloc_info{
 			.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-			.descriptorPool = context.descriptor_pool,
+			.descriptorPool = c.descriptor_pool,
 			.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT),
 			.pSetLayouts = layouts,
 		};
 
-		VkResult result = vkAllocateDescriptorSets(context.device, &alloc_info, context.descriptor_sets);
+		VkResult result = vkAllocateDescriptorSets(c.device, &alloc_info, c.descriptor_sets);
 		if (VK_SUCCESS != result)
 		{
 			platform_log("Fatal: Failed to allocate descriptor sets!\n");
@@ -1575,19 +1591,19 @@ bool32 renderer_vulkan_init()
 		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
 		{
 			VkDescriptorBufferInfo buffer_info{
-				.buffer = context.uniform_buffers[i],
+				.buffer = c.uniform_buffers[0].buffer[i],
 				.offset = 0,
 				.range = sizeof(Uniform_Buffer_Object),
 			};
 			VkDescriptorImageInfo image_info{
-				.sampler = context.texture_sampler,
-				.imageView = context.texture_image_view,
+				.sampler = c.texture[0].sampler,
+				.imageView = c.texture[0].image_view,
 				.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
 			};
 			VkWriteDescriptorSet descriptor_writes[] = {
 				{
 					.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-					.dstSet = context.descriptor_sets[i],
+					.dstSet = c.descriptor_sets[i],
 					.dstBinding = 0,
 					.dstArrayElement = 0,
 					.descriptorCount = 1,
@@ -1596,7 +1612,7 @@ bool32 renderer_vulkan_init()
 				},
 				{
 					.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-					.dstSet = context.descriptor_sets[i],
+					.dstSet = c.descriptor_sets[i],
 					.dstBinding = 1,
 					.dstArrayElement = 0,
 					.descriptorCount = 1,
@@ -1604,7 +1620,7 @@ bool32 renderer_vulkan_init()
 					.pImageInfo = &image_info,
 				},
 			};
-			vkUpdateDescriptorSets(context.device, sizeof(descriptor_writes) / sizeof(descriptor_writes[0]), descriptor_writes, 0, 0);
+			vkUpdateDescriptorSets(c.device, sizeof(descriptor_writes) / sizeof(descriptor_writes[0]), descriptor_writes, 0, 0);
 		}
 	}
 
@@ -1612,16 +1628,16 @@ bool32 renderer_vulkan_init()
 
 	// create command buffers
 	{
-		context.command_buffers.resize(MAX_FRAMES_IN_FLIGHT);
+		c.command_buffers.resize(MAX_FRAMES_IN_FLIGHT);
 
 		VkCommandBufferAllocateInfo allocate_info{
 			.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-			.commandPool = context.command_pool,
+			.commandPool = c.command_pool,
 			.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-			.commandBufferCount = static_cast<uint32_t>(context.command_buffers.size()),
+			.commandBufferCount = static_cast<uint32_t>(c.command_buffers.size()),
 		};
 
-		VkResult result = vkAllocateCommandBuffers(context.device, &allocate_info, context.command_buffers.data());
+		VkResult result = vkAllocateCommandBuffers(c.device, &allocate_info, c.command_buffers.data());
 		if (result != VK_SUCCESS)
 		{
 			platform_log("Fatal: Failed to allocate command buffers!\n");
@@ -1633,9 +1649,9 @@ bool32 renderer_vulkan_init()
 
 	// create synchronization objects
 	{
-		context.image_available_semaphores.resize(MAX_FRAMES_IN_FLIGHT);
-		context.render_finished_semaphores.resize(MAX_FRAMES_IN_FLIGHT);
-		context.in_flight_fences.resize(MAX_FRAMES_IN_FLIGHT);
+		c.image_available_semaphores.resize(MAX_FRAMES_IN_FLIGHT);
+		c.render_finished_semaphores.resize(MAX_FRAMES_IN_FLIGHT);
+		c.in_flight_fences.resize(MAX_FRAMES_IN_FLIGHT);
 
 		VkSemaphoreCreateInfo semaphore_info{
 			.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
@@ -1648,9 +1664,9 @@ bool32 renderer_vulkan_init()
 
 		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
 		{
-			if (VK_SUCCESS != vkCreateSemaphore(context.device, &semaphore_info, 0, &context.image_available_semaphores[i]) ||
-				VK_SUCCESS != vkCreateSemaphore(context.device, &semaphore_info, 0, &context.render_finished_semaphores[i]) ||
-				VK_SUCCESS != vkCreateFence(context.device, &fence_info, 0, &context.in_flight_fences[i]))
+			if (VK_SUCCESS != vkCreateSemaphore(c.device, &semaphore_info, 0, &c.image_available_semaphores[i]) ||
+				VK_SUCCESS != vkCreateSemaphore(c.device, &semaphore_info, 0, &c.render_finished_semaphores[i]) ||
+				VK_SUCCESS != vkCreateFence(c.device, &fence_info, 0, &c.in_flight_fences[i]))
 			{
 				platform_log("Fatal: Failed to create synchronization objects!\n");
 				return GAME_FAILURE;
@@ -1669,5 +1685,5 @@ void renderer_vulkan_cleanup()
 
 void renderer_vulkan_wait_idle()
 {
-	vkDeviceWaitIdle(context.device);
+	vkDeviceWaitIdle(c.device);
 }

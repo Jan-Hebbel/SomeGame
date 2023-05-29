@@ -50,7 +50,7 @@ void game_render(Game_State *game_state)
 
 	switch (game_state->mode)
 	{
-		case GAME_PLAY:
+		case MODE_PLAY:
 		{
 			draw_frame(game_state);
 		} break;

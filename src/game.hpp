@@ -6,9 +6,9 @@
 #include "math.hpp"
 
 enum Game_Mode {
-	GAME_MENU   = 0,
-	GAME_PLAY   = 1,
-	GAME_EDITOR = 2,
+	MODE_MENU   = 0,
+	MODE_PLAY   = 1,
+	MODE_EDITOR = 2,
 };
 
 struct Game_State {

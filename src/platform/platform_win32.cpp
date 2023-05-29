@@ -541,7 +541,7 @@ int CALLBACK WinMain(_In_ HINSTANCE h_instance, _In_opt_ HINSTANCE h_prev_instan
 		return result;
 	}
 
-	Game_State game_state = { /* should close */ false, /* Mode */ GAME_PLAY, /* Player {Position, Speed}*/ {{0.0f, 0.0f}, 5.0f}};
+	Game_State game_state = { /* should close */ false, /* Mode */ MODE_PLAY, /* Player {Position, Speed}*/ {{0.0f, 0.0f}, 5.0f}};
 
 	should_close = false;
 
