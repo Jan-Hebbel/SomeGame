@@ -148,13 +148,6 @@ enum Buffer_Type {
 	INDEX_BUFFER = 1,
 };
 
-global_variable const Vertex vertices[] = {
-	{.pos = {-0.5f, -0.5f}, .tex_coord = {0.0f, 0.0f}},
-	{.pos = { 0.5f, -0.5f}, .tex_coord = {1.0f, 0.0f}},
-	{.pos = { 0.5f,  0.5f}, .tex_coord = {1.0f, 1.0f}},
-	{.pos = {-0.5f,  0.5f}, .tex_coord = {0.0f, 1.0f}},
-};
-
 global_variable const uint16 indices[] = {
 	0, 1, 2, 2, 3, 0
 };
@@ -813,7 +806,7 @@ internal_function bool32 create_shader_module(const char *shader_file, VkShaderM
 	return GAME_SUCCESS;
 }
 
-void create_render_buffer(const void *vertices, size_t size, Buffer_Type type, VkBuffer &buffer, VkDeviceMemory &memory) {
+void create_render_buffer(const void *elements, size_t size, Buffer_Type type, VkBuffer &buffer, VkDeviceMemory &memory) {
 	VkBufferUsageFlagBits usage_type;
 	switch (type) {
 		case VERTEX_BUFFER: {
@@ -836,7 +829,7 @@ void create_render_buffer(const void *vertices, size_t size, Buffer_Type type, V
 
 	void *data;
 	vkMapMemory(c.device, staging_buffer_memory, 0, static_cast<uint64_t>(size), 0, &data);
-	memcpy(data, vertices, size);
+	memcpy(data, elements, size);
 	vkUnmapMemory(c.device, staging_buffer_memory);
 
 	create_buffer(static_cast<uint64_t>(size), VK_BUFFER_USAGE_TRANSFER_DST_BIT | usage_type, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, buffer, memory);
@@ -1512,14 +1505,36 @@ bool32 renderer_vulkan_init()
 	// create vertex buffer
 	//
 	{
+		// Player
+		const Vertex vertices[] = {
+			{.pos = {-0.5f, -0.5f}, .tex_coord = {0.0f, 0.0f}},
+			{.pos = { 0.5f, -0.5f}, .tex_coord = {1.0f, 0.0f}},
+			{.pos = { 0.5f,  0.5f}, .tex_coord = {1.0f, 1.0f}},
+			{.pos = {-0.5f,  0.5f}, .tex_coord = {0.0f, 1.0f}},
+		};
+
 		create_render_buffer(vertices, sizeof(vertices), VERTEX_BUFFER, c.vertex_buffer[0].buffer, c.vertex_buffer[0].memory);
+
+		// Background
+		const Vertex bg_vertices[] = {
+			{.pos = {-1.0f, -1.0f}, .tex_coord = {0.0f, 0.0f}},
+			{.pos = { 1.0f, -1.0f}, .tex_coord = {1.0f, 0.0f}},
+			{.pos = { 1.0f,  1.0f}, .tex_coord = {1.0f, 1.0f}},
+			{.pos = {-1.0f,  1.0f}, .tex_coord = {0.0f, 1.0f}},
+		};
+
+		create_render_buffer(bg_vertices, sizeof(bg_vertices), VERTEX_BUFFER, c.vertex_buffer[1].buffer, c.vertex_buffer[1].memory);
 	}
 
 	//
 	// create index buffer
 	//
 	{
+		// Player
 		create_render_buffer(indices, sizeof(indices), INDEX_BUFFER, c.index_buffer[0].buffer, c.index_buffer[0].memory);
+
+		// Background
+		create_render_buffer(indices, sizeof(indices), INDEX_BUFFER, c.index_buffer[1].buffer, c.index_buffer[1].memory);
 	}
 
 
