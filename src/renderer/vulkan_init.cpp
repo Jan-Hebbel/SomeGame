@@ -441,7 +441,7 @@ void draw_frame(Game_State *game_state)
 	//
 	// Update Uniform Buffers. (@Performance: Most efficient way to pass a frequently changing small amount of data to the shader are push constants)
 	//
-	float scale = 6.0f;
+	float scale = 3.0f;
 	float aspect = (float)c.swapchain_image_extent.width / (float)c.swapchain_image_extent.height;
 	Uniform_Buffer_Object ubo{
 		.model = transpose(translate({game_state->player.position.x, game_state->player.position.y, 0})),
@@ -1426,7 +1426,7 @@ bool32 renderer_vulkan_init()
 	// create texture image
 	{
 		int width, height, channels;
-		stbi_uc *pixels = stbi_load("res/textures/knight_1400.png", &width, &height, &channels, STBI_rgb_alpha);
+		stbi_uc *pixels = stbi_load("res/textures/knight.png", &width, &height, &channels, STBI_rgb_alpha);
 		VkDeviceSize image_size = width * height * 4;
 		if (!pixels) 
 		{
@@ -1511,10 +1511,10 @@ bool32 renderer_vulkan_init()
 	{
 		// Player
 		const Vertex vertices[] = {
-			{.pos = {-0.5f, -0.5f}, .tex_coord = {0.0f, 0.0f}},
-			{.pos = { 0.5f, -0.5f}, .tex_coord = {1.0f, 0.0f}},
-			{.pos = { 0.5f,  0.5f}, .tex_coord = {1.0f, 1.0f}},
-			{.pos = {-0.5f,  0.5f}, .tex_coord = {0.0f, 1.0f}},
+			{.pos = {-0.6f, -0.5f}, .tex_coord = {0.0f, 0.0f}},
+			{.pos = { 0.6f, -0.5f}, .tex_coord = {1.0f, 0.0f}},
+			{.pos = { 0.6f,  0.5f}, .tex_coord = {1.0f, 1.0f}},
+			{.pos = {-0.6f,  0.5f}, .tex_coord = {0.0f, 1.0f}},
 		};
 
 		create_render_buffer(vertices, sizeof(vertices), &c.vertex_buffer[0], VERTEX_BUFFER);
