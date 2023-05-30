@@ -1509,7 +1509,7 @@ bool32 renderer_vulkan_init() {
 		bool result;
 
 		// Player
-		result = create_texture_image("res/textures/knight.png", &width, &height, &nr_channels, &c.texture[0]);
+		result = create_texture_image("res/textures/texture_atlas.png", &width, &height, &nr_channels, &c.texture[0]);
 		if (!result) {
 			platform_log("Failed to create texture image!\n");
 		}
@@ -1546,7 +1546,13 @@ bool32 renderer_vulkan_init() {
 	{
 		bool result;
 		result = create_texture_image_sampler(&c.texture[0]); // Player
+		if (!result) {
+			platform_log("Failed to create a texture image sampler!\n");
+		}
 		result = create_texture_image_sampler(&c.texture[1]); // Background
+		if (!result) {
+			platform_log("Failed to create a texture image sampler!\n");
+		}
 	}
 
 	//
@@ -1555,20 +1561,20 @@ bool32 renderer_vulkan_init() {
 	{
 		// Player
 		const Vertex vertices[] = {
-			{.pos = {-0.6f, -0.5f}, .tex_coord = {0.0f, 0.0f}},
-			{.pos = { 0.6f, -0.5f}, .tex_coord = {1.0f, 0.0f}},
-			{.pos = { 0.6f,  0.5f}, .tex_coord = {1.0f, 1.0f}},
-			{.pos = {-0.6f,  0.5f}, .tex_coord = {0.0f, 1.0f}},
+			{.pos = {-0.6f, -0.5f}, .tex_coord = {0.0f,     0.0f}},
+			{.pos = { 0.6f, -0.5f}, .tex_coord = {0.046875, 0.0f}},
+			{.pos = { 0.6f,  0.5f}, .tex_coord = {0.046875, 0.0390625}},
+			{.pos = {-0.6f,  0.5f}, .tex_coord = {0.0f,     0.0390625}},
 		};
 
 		create_render_buffer(vertices, sizeof(vertices), &c.vertex_buffer[0], VERTEX_BUFFER);
 
 		// Background
 		const Vertex bg_vertices[] = {
-			{.pos = {-1.0f, -1.0f}, .tex_coord = {0.0f, 0.0f}},
-			{.pos = { 1.0f, -1.0f}, .tex_coord = {1.0f, 0.0f}},
-			{.pos = { 1.0f,  1.0f}, .tex_coord = {1.0f, 1.0f}},
-			{.pos = {-1.0f,  1.0f}, .tex_coord = {0.0f, 1.0f}},
+			{.pos = {-1.0f, -1.0f}, .tex_coord = {0.0625f, 0.0f}},
+			{.pos = { 1.0f, -1.0f}, .tex_coord = {0.125f,  0.0f}},
+			{.pos = { 1.0f,  1.0f}, .tex_coord = {0.125f,  0.0625f}},
+			{.pos = {-1.0f,  1.0f}, .tex_coord = {0.0625f, 0.0625f}},
 		};
 
 		create_render_buffer(bg_vertices, sizeof(bg_vertices), &c.vertex_buffer[1], VERTEX_BUFFER);
