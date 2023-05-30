@@ -451,6 +451,13 @@ void draw_frame(Game_State *game_state)
 	};
 	memcpy(c.uniform_buffers[0].mapped[c.current_frame], &ubo, sizeof(ubo));
 
+	ubo = { 
+		.model = identity(), 
+		.view = identity(), 
+		.proj = transpose(orthographic_projection(-aspect * scale, aspect * scale, -scale, scale, 0.1f, 2.0f))
+	};
+	memcpy(c.uniform_buffers[1].mapped[c.current_frame], &ubo, sizeof(ubo));
+
 	// 
 	// Draw. (Record command buffer that draws image.)
 	//
@@ -1614,6 +1621,14 @@ bool32 renderer_vulkan_init() {
 
 			vkMapMemory(c.device, c.uniform_buffers[0].memory[i], 0, buffer_size, 0, &c.uniform_buffers[0].mapped[i]);
 		}
+
+		buffer_size = sizeof(Uniform_Buffer_Object);
+		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
+		{
+			create_buffer(buffer_size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, c.uniform_buffers[1].buffer[i], c.uniform_buffers[1].memory[i]);
+
+			vkMapMemory(c.device, c.uniform_buffers[1].memory[i], 0, buffer_size, 0, &c.uniform_buffers[1].mapped[i]);
+		}
 	}
 
 
@@ -1723,7 +1738,7 @@ bool32 renderer_vulkan_init() {
 
 		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
 			VkDescriptorBufferInfo buffer_info{
-				.buffer = c.uniform_buffers[0].buffer[i], // @Cleanup: We reuse the first ubo. Do we need the second one we allocated on the stack in global_vulkan_context?
+				.buffer = c.uniform_buffers[1].buffer[i], // @Cleanup: We reuse the first ubo. Do we need the second one we allocated on the stack in global_vulkan_context?
 				.offset = 0,
 				.range = sizeof(Uniform_Buffer_Object),
 			};
