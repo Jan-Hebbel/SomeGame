@@ -881,8 +881,51 @@ bool create_texture_image(const char *file_path, int *width, int *height, int *n
 	return true;
 }
 
-bool32 renderer_vulkan_init()
-{
+bool create_texture_image_view(Texture *texture) {
+	VkImageViewCreateInfo view_info = {
+		.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+		.image = texture->image,
+		.viewType = VK_IMAGE_VIEW_TYPE_2D,
+		.format = VK_FORMAT_R8G8B8A8_SRGB,
+		.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 },
+	};
+	VkResult result = vkCreateImageView(c.device, &view_info, 0, &texture->image_view);
+	if (result != VK_SUCCESS) {
+		return false;
+	}
+
+	return true;
+}
+
+bool create_texture_image_sampler(Texture *texture) {
+	VkSamplerCreateInfo sampler_info{
+		.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+		.magFilter = VK_FILTER_NEAREST,
+		.minFilter = VK_FILTER_NEAREST,
+		.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
+		.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+		.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+		.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+		.mipLodBias = 0.0f,
+		.anisotropyEnable = VK_FALSE,
+		.compareEnable = VK_FALSE,
+		.compareOp = VK_COMPARE_OP_ALWAYS,
+		.minLod = 0.0f,
+		.maxLod = 0.0f,
+		.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
+		.unnormalizedCoordinates = VK_FALSE,
+	};
+	VkResult result = vkCreateSampler(c.device, &sampler_info, 0, &texture->sampler);
+	if (result != VK_SUCCESS)
+	{
+		platform_log("Fatal: Failed to create a sampler!\n");
+		return false;
+	}
+
+	return true;
+}
+
+bool32 renderer_vulkan_init() {
 	// debug callback: which messages are filtered and which are not
 	VkDebugUtilsMessengerCreateInfoEXT messenger_info{};
 	messenger_info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
@@ -1482,18 +1525,18 @@ bool32 renderer_vulkan_init()
 
 	// create texture image view
 	{
-		VkImageViewCreateInfo view_info{
-			.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-			.image = c.texture[0].image,
-			.viewType = VK_IMAGE_VIEW_TYPE_2D,
-			.format = VK_FORMAT_R8G8B8A8_SRGB,
-			.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 },
-		};
-		VkResult result = vkCreateImageView(c.device, &view_info, 0, &c.texture[0].image_view);
-		if (result != VK_SUCCESS)
-		{
-			platform_log("Fatal: Failed to create texture image views!\n");
-			return GAME_FAILURE;
+		bool result; 
+
+		// Player
+		result = create_texture_image_view(&c.texture[0]);
+		if (!result) {
+			platform_log("Failed to create a texture image view!\n");
+		}
+
+		// Background
+		result = create_texture_image_view(&c.texture[1]);
+		if (!result) {
+			platform_log("Failed to create a texture image view!\n");
 		}
 	}
 
@@ -1501,29 +1544,9 @@ bool32 renderer_vulkan_init()
 
 	// create texture sampler
 	{
-		VkSamplerCreateInfo sampler_info{
-			.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-			.magFilter = VK_FILTER_NEAREST,
-			.minFilter = VK_FILTER_NEAREST,
-			.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
-			.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-			.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-			.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-			.mipLodBias = 0.0f,
-			.anisotropyEnable = VK_FALSE,
-			.compareEnable = VK_FALSE,
-			.compareOp = VK_COMPARE_OP_ALWAYS,
-			.minLod = 0.0f,
-			.maxLod = 0.0f,
-			.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
-			.unnormalizedCoordinates = VK_FALSE,
-		};
-		VkResult result = vkCreateSampler(c.device, &sampler_info, 0, &c.texture[0].sampler);
-		if (result != VK_SUCCESS)
-		{
-			platform_log("Fatal: Failed to create a sampler!\n");
-			return GAME_FAILURE;
-		}
+		bool result;
+		result = create_texture_image_sampler(&c.texture[0]); // Player
+		result = create_texture_image_sampler(&c.texture[1]); // Background
 	}
 
 	//
