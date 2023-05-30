@@ -807,9 +807,9 @@ internal_function bool32 create_shader_module(const char *shader_file, VkShaderM
 	return GAME_SUCCESS;
 }
 
-void create_render_buffer(const void *elements, size_t size, Render_Buffer *render_buffer) {
+void create_render_buffer(const void *elements, size_t size, Render_Buffer *render_buffer, Buffer_Type type) {
 	VkBufferUsageFlagBits usage_type;
-	switch (render_buffer->type) {
+	switch (type) {
 		case VERTEX_BUFFER: {
 			usage_type = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
 			break;
@@ -1510,8 +1510,6 @@ bool32 renderer_vulkan_init()
 	//
 	{
 		// Player
-		c.vertex_buffer[0].type = VERTEX_BUFFER;
-
 		const Vertex vertices[] = {
 			{.pos = {-0.5f, -0.5f}, .tex_coord = {0.0f, 0.0f}},
 			{.pos = { 0.5f, -0.5f}, .tex_coord = {1.0f, 0.0f}},
@@ -1519,11 +1517,9 @@ bool32 renderer_vulkan_init()
 			{.pos = {-0.5f,  0.5f}, .tex_coord = {0.0f, 1.0f}},
 		};
 
-		create_render_buffer(vertices, sizeof(vertices), &c.vertex_buffer[0]);
+		create_render_buffer(vertices, sizeof(vertices), &c.vertex_buffer[0], VERTEX_BUFFER);
 
 		// Background
-		c.vertex_buffer[1].type = VERTEX_BUFFER;
-
 		const Vertex bg_vertices[] = {
 			{.pos = {-1.0f, -1.0f}, .tex_coord = {0.0f, 0.0f}},
 			{.pos = { 1.0f, -1.0f}, .tex_coord = {1.0f, 0.0f}},
@@ -1531,7 +1527,7 @@ bool32 renderer_vulkan_init()
 			{.pos = {-1.0f,  1.0f}, .tex_coord = {0.0f, 1.0f}},
 		};
 
-		create_render_buffer(bg_vertices, sizeof(bg_vertices), &c.vertex_buffer[1]);
+		create_render_buffer(bg_vertices, sizeof(bg_vertices), &c.vertex_buffer[1], VERTEX_BUFFER);
 	}
 
 	//
@@ -1541,12 +1537,12 @@ bool32 renderer_vulkan_init()
 		// Player
 		c.index_buffer[0].type = INDEX_BUFFER;
 
-		create_render_buffer(indices, sizeof(indices), &c.index_buffer[0]);
+		create_render_buffer(indices, sizeof(indices), &c.index_buffer[0], INDEX_BUFFER);
 
 		// Background
 		c.index_buffer[1].type = INDEX_BUFFER;
 
-		create_render_buffer(indices, sizeof(indices), &c.index_buffer[1]);
+		create_render_buffer(indices, sizeof(indices), &c.index_buffer[1], INDEX_BUFFER);
 	}
 
 
