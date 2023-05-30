@@ -825,6 +825,7 @@ void create_render_buffer(const void *elements, size_t size, Render_Buffer *rend
 			break;
 		}
 	}
+	render_buffer->type = type;
 
 	VkBuffer staging_buffer;
 	VkDeviceMemory staging_buffer_memory;
@@ -842,6 +843,42 @@ void create_render_buffer(const void *elements, size_t size, Render_Buffer *rend
 
 	vkDestroyBuffer(c.device, staging_buffer, 0);
 	vkFreeMemory(c.device, staging_buffer_memory, 0);
+}
+
+bool create_texture_image(const char *file_path, int *width, int *height, int *nr_channels) {
+	stbi_uc *pixels = stbi_load(file_path, width, height, nr_channels, STBI_rgb_alpha);
+	if (!pixels) {
+		return false;
+	}
+
+	int w = *width;
+	int h = *height;
+
+	VkDeviceSize image_size = w * h * 4;
+
+	VkBuffer staging_buffer;
+	VkDeviceMemory staging_buffer_memory;
+
+	create_buffer(image_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, staging_buffer, staging_buffer_memory);
+
+	void *data;
+	vkMapMemory(c.device, staging_buffer_memory, 0, image_size, 0, &data);
+	memcpy(data, pixels, static_cast<size_t>(image_size));
+	vkUnmapMemory(c.device, staging_buffer_memory);
+	stbi_image_free(pixels);
+
+	create_image(w, h, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, c.texture[0].image, c.texture[0].memory);
+
+	transition_image_layout(c.texture[0].image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+	copy_buffer_to_image(staging_buffer, c.texture[0].image, static_cast<uint32_t>(w), static_cast<uint32_t>(h));
+
+	transition_image_layout(c.texture[0].image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+	vkDestroyBuffer(c.device, staging_buffer, 0);
+	vkFreeMemory(c.device, staging_buffer_memory, 0);
+
+	return true;
 }
 
 bool32 renderer_vulkan_init()
@@ -1425,36 +1462,8 @@ bool32 renderer_vulkan_init()
 
 	// create texture image
 	{
-		int width, height, channels;
-		stbi_uc *pixels = stbi_load("res/textures/knight.png", &width, &height, &channels, STBI_rgb_alpha);
-		VkDeviceSize image_size = width * height * 4;
-		if (!pixels) 
-		{
-			platform_log("Failed to load texture!\n");
-			assert(pixels != NULL);
-		}
-
-		VkBuffer staging_buffer;
-		VkDeviceMemory staging_buffer_memory;
-
-		create_buffer(image_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, staging_buffer, staging_buffer_memory);
-
-		void *data;
-		vkMapMemory(c.device, staging_buffer_memory, 0, image_size, 0, &data);
-		memcpy(data, pixels, static_cast<size_t>(image_size));
-		vkUnmapMemory(c.device, staging_buffer_memory);
-		stbi_image_free(pixels);
-
-		create_image(width, height, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, c.texture[0].image, c.texture[0].memory);
-
-		transition_image_layout(c.texture[0].image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-
-		copy_buffer_to_image(staging_buffer, c.texture[0].image, static_cast<uint32_t>(width), static_cast<uint32_t>(height));
-
-		transition_image_layout(c.texture[0].image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-
-		vkDestroyBuffer(c.device, staging_buffer, 0);
-		vkFreeMemory(c.device, staging_buffer_memory, 0);
+		int width, height, nr_channels;
+		create_texture_image("res/textures/knight.png", &width, &height, &nr_channels);
 	}
 
 
@@ -1535,13 +1544,9 @@ bool32 renderer_vulkan_init()
 	//
 	{
 		// Player
-		c.index_buffer[0].type = INDEX_BUFFER;
-
 		create_render_buffer(indices, sizeof(indices), &c.index_buffer[0], INDEX_BUFFER);
 
 		// Background
-		c.index_buffer[1].type = INDEX_BUFFER;
-
 		create_render_buffer(indices, sizeof(indices), &c.index_buffer[1], INDEX_BUFFER);
 	}
 
