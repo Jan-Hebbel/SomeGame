@@ -99,8 +99,8 @@ struct Global_Vulkan_Context
 	std::vector<VkImageView> swapchain_image_views;
 	VkRenderPass render_pass;
 	VkDescriptorSetLayout descriptor_set_layout;
-	VkDescriptorPool descriptor_pool;
-	VkDescriptorSet descriptor_sets[MAX_FRAMES_IN_FLIGHT];
+	VkDescriptorPool descriptor_pool[2];
+	VkDescriptorSet descriptor_sets[2][MAX_FRAMES_IN_FLIGHT];
 	VkPipelineLayout pipeline_layout;
 	VkPipeline graphics_pipeline;
 	std::vector<VkFramebuffer> swapchain_framebuffers;
@@ -481,30 +481,42 @@ void draw_frame(Game_State *game_state)
 
 	vkCmdBeginRenderPass(command_buffer, &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
 
-	vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, c.graphics_pipeline);
+	{
+		vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, c.graphics_pipeline);
 
-	VkViewport viewport{
-		.x = 0.0f, .y = 0.0f,
-		.width = static_cast<float>(c.swapchain_image_extent.width),
-		.height = static_cast<float>(c.swapchain_image_extent.height),
-		.minDepth = 0.0f, .maxDepth = 1.0f
-	};
-	vkCmdSetViewport(command_buffer, 0, 1, &viewport);
+		VkViewport viewport{
+			.x = 0.0f, .y = 0.0f,
+			.width = static_cast<float>(c.swapchain_image_extent.width),
+			.height = static_cast<float>(c.swapchain_image_extent.height),
+			.minDepth = 0.0f, .maxDepth = 1.0f
+		};
+		vkCmdSetViewport(command_buffer, 0, 1, &viewport);
 
-	VkRect2D scissor{
-		.offset = { 0, 0 },
-		.extent = c.swapchain_image_extent,
-	};
-	vkCmdSetScissor(command_buffer, 0, 1, &scissor);
+		VkRect2D scissor{
+			.offset = { 0, 0 },
+			.extent = c.swapchain_image_extent,
+		};
+		vkCmdSetScissor(command_buffer, 0, 1, &scissor);
 
-	VkBuffer vertex_buffers[] = { c.vertex_buffer[0].buffer };
-	VkDeviceSize offsets[] = { 0 };
-	vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers, offsets);
-	vkCmdBindIndexBuffer(command_buffer, c.index_buffer[0].buffer, 0, VK_INDEX_TYPE_UINT16);
+		// Draw background
+		VkBuffer vertex_buffers2[] = { c.vertex_buffer[1].buffer };
+		VkDeviceSize offsets2[] = { 0 };
+		vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers2, offsets2);
+		vkCmdBindIndexBuffer(command_buffer, c.index_buffer[1].buffer, 0, VK_INDEX_TYPE_UINT16);
+		vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, c.pipeline_layout, 0, 1, &c.descriptor_sets[1][c.current_frame], 0, 0);
 
-	vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, c.pipeline_layout, 0, 1, &c.descriptor_sets[c.current_frame], 0, 0);
+		vkCmdDrawIndexed(command_buffer, sizeof(indices) / sizeof(indices[0]), 1, 0, 0, 0);
 
-	vkCmdDrawIndexed(command_buffer, sizeof(indices) / sizeof(indices[0]), 1, 0, 0, 0);
+		// Draw player
+		VkBuffer vertex_buffers[] = { c.vertex_buffer[0].buffer };
+		VkDeviceSize offsets[] = { 0 };
+
+		vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers, offsets);
+		vkCmdBindIndexBuffer(command_buffer, c.index_buffer[0].buffer, 0, VK_INDEX_TYPE_UINT16);
+		vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, c.pipeline_layout, 0, 1, &c.descriptor_sets[0][c.current_frame], 0, 0); // holds uniforms (texture sampler, uniform buffers)
+
+		vkCmdDrawIndexed(command_buffer, sizeof(indices) / sizeof(indices[0]), 1, 0, 0, 0);
+	}
 
 	vkCmdEndRenderPass(command_buffer);
 
@@ -1626,7 +1638,14 @@ bool32 renderer_vulkan_init() {
 			.pPoolSizes = pool_sizes,
 		};
 
-		VkResult result = vkCreateDescriptorPool(c.device, &pool_info, 0, &c.descriptor_pool);
+		VkResult result = vkCreateDescriptorPool(c.device, &pool_info, 0, &c.descriptor_pool[0]);
+		if (VK_SUCCESS != result)
+		{
+			platform_log("Fatal: Failed to create descriptor pool!\n");
+			return GAME_FAILURE;
+		}
+
+		result = vkCreateDescriptorPool(c.device, &pool_info, 0, &c.descriptor_pool[1]);
 		if (VK_SUCCESS != result)
 		{
 			platform_log("Fatal: Failed to create descriptor pool!\n");
@@ -1639,26 +1658,23 @@ bool32 renderer_vulkan_init() {
 	// create descriptor sets
 	{
 		VkDescriptorSetLayout layouts[MAX_FRAMES_IN_FLIGHT];
-		for (uint32 i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
-		{
+		for (uint32 i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
 			layouts[i] = c.descriptor_set_layout;
 		}
-		VkDescriptorSetAllocateInfo alloc_info{
+		VkDescriptorSetAllocateInfo alloc_info = {
 			.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-			.descriptorPool = c.descriptor_pool,
+			.descriptorPool = c.descriptor_pool[0],
 			.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT),
 			.pSetLayouts = layouts,
 		};
 
-		VkResult result = vkAllocateDescriptorSets(c.device, &alloc_info, c.descriptor_sets);
-		if (VK_SUCCESS != result)
-		{
+		VkResult result = vkAllocateDescriptorSets(c.device, &alloc_info, c.descriptor_sets[0]);
+		if (VK_SUCCESS != result) {
 			platform_log("Fatal: Failed to allocate descriptor sets!\n");
 			return GAME_FAILURE;
 		}
 
-		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
-		{
+		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
 			VkDescriptorBufferInfo buffer_info{
 				.buffer = c.uniform_buffers[0].buffer[i],
 				.offset = 0,
@@ -1672,7 +1688,7 @@ bool32 renderer_vulkan_init() {
 			VkWriteDescriptorSet descriptor_writes[] = {
 				{
 					.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-					.dstSet = c.descriptor_sets[i],
+					.dstSet = c.descriptor_sets[0][i],
 					.dstBinding = 0,
 					.dstArrayElement = 0,
 					.descriptorCount = 1,
@@ -1681,13 +1697,60 @@ bool32 renderer_vulkan_init() {
 				},
 				{
 					.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-					.dstSet = c.descriptor_sets[i],
+					.dstSet = c.descriptor_sets[0][i],
 					.dstBinding = 1,
 					.dstArrayElement = 0,
 					.descriptorCount = 1,
 					.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
 					.pImageInfo = &image_info,
+				}
+			};
+			vkUpdateDescriptorSets(c.device, sizeof(descriptor_writes) / sizeof(descriptor_writes[0]), descriptor_writes, 0, 0);
+		}
+
+		// Background Descriptor Sets
+		VkDescriptorSetAllocateInfo alloc_info2 = {
+			.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+			.descriptorPool = c.descriptor_pool[1],
+			.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT),
+			.pSetLayouts = layouts,
+		};
+		result = vkAllocateDescriptorSets(c.device, &alloc_info2, c.descriptor_sets[1]);
+		if (VK_SUCCESS != result) {
+			platform_log("Fatal: Failed to allocate descriptor sets!\n");
+			return GAME_FAILURE;
+		}
+
+		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
+			VkDescriptorBufferInfo buffer_info{
+				.buffer = c.uniform_buffers[0].buffer[i], // @Cleanup: We reuse the first ubo. Do we need the second one we allocated on the stack in global_vulkan_context?
+				.offset = 0,
+				.range = sizeof(Uniform_Buffer_Object),
+			};
+			VkDescriptorImageInfo image_info{
+				.sampler = c.texture[1].sampler,
+				.imageView = c.texture[1].image_view,
+				.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+			};
+			VkWriteDescriptorSet descriptor_writes[] = {
+				{
+					.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+					.dstSet = c.descriptor_sets[1][i],
+					.dstBinding = 0,
+					.dstArrayElement = 0,
+					.descriptorCount = 1,
+					.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+					.pBufferInfo = &buffer_info,
 				},
+				{
+					.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+					.dstSet = c.descriptor_sets[1][i],
+					.dstBinding = 1,
+					.dstArrayElement = 0,
+					.descriptorCount = 1,
+					.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+					.pImageInfo = &image_info,
+				}
 			};
 			vkUpdateDescriptorSets(c.device, sizeof(descriptor_writes) / sizeof(descriptor_writes[0]), descriptor_writes, 0, 0);
 		}

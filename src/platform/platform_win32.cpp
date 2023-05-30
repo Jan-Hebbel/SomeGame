@@ -538,7 +538,8 @@ int CALLBACK WinMain(_In_ HINSTANCE h_instance, _In_opt_ HINSTANCE h_prev_instan
 	if (result != GAME_SUCCESS)
 	{
 		platform_log("Fatal: Failed to initialize vulkan!\n");
-		return result;
+		__debugbreak();
+		return GAME_FAILURE;
 	}
 
 	Game_State game_state = { /* should close */ false, /* Mode */ MODE_PLAY, /* Player {Position, Speed}*/ {{0.0f, 0.0f}, 5.0f}};
