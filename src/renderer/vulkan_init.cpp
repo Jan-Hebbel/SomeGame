@@ -441,6 +441,7 @@ void draw_frame(Game_State *game_state)
 	//
 	// Update Uniform Buffers. (@Performance: Most efficient way to pass a frequently changing small amount of data to the shader are push constants)
 	//
+	// Player
 	float scale = 3.0f;
 	float aspect = (float)c.swapchain_image_extent.width / (float)c.swapchain_image_extent.height;
 	Uniform_Buffer_Object ubo{
@@ -451,6 +452,7 @@ void draw_frame(Game_State *game_state)
 	};
 	memcpy(c.uniform_buffers[0].mapped[c.current_frame], &ubo, sizeof(ubo));
 
+	// Background
 	ubo = { 
 		.model = identity(), 
 		.view = identity(), 
