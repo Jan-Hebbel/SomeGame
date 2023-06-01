@@ -1592,10 +1592,10 @@ bool32 renderer_vulkan_init() {
 
 		// Background
 		const Vertex bg_vertices[] = {
-			{.pos = {-1.0f, -1.0f}, .tex_coord = {0.0f, 0.0f}},
-			{.pos = { 1.0f, -1.0f}, .tex_coord = {1.0f, 0.0f}},
-			{.pos = { 1.0f,  1.0f}, .tex_coord = {1.0f, 1.0f}},
-			{.pos = {-1.0f,  1.0f}, .tex_coord = {0.0f, 1.0f}},
+			{.pos = {-6.0f, -6.0f}, .tex_coord = {0.0f, 0.0f}},
+			{.pos = { 6.0f, -6.0f}, .tex_coord = {6.0f, 0.0f}},
+			{.pos = { 6.0f,  6.0f}, .tex_coord = {6.0f, 6.0f}},
+			{.pos = {-6.0f,  6.0f}, .tex_coord = {0.0f, 6.0f}},
 		};
 
 		create_render_buffer(bg_vertices, sizeof(bg_vertices), &c.vertex_buffer[1], VERTEX_BUFFER);
