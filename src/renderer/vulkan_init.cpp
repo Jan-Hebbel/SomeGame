@@ -1530,7 +1530,7 @@ bool32 renderer_vulkan_init() {
 		bool result;
 
 		// Player
-		result = create_texture_image("res/textures/knight.png", &width, &height, &nr_channels, &c.texture[0]);
+		result = create_texture_image("res/textures/option2.png", &width, &height, &nr_channels, &c.texture[0]);
 		if (!result) {
 			platform_log("Failed to create texture image!\n");
 		}
@@ -1582,10 +1582,10 @@ bool32 renderer_vulkan_init() {
 	{
 		// Player
 		const Vertex vertices[] = {
-			{.pos = {-0.6f, -0.5f}, .tex_coord = {0.0f, 0.0f}},
-			{.pos = { 0.6f, -0.5f}, .tex_coord = {1.0f, 0.0f}},
-			{.pos = { 0.6f,  0.5f}, .tex_coord = {1.0f, 1.0f}},
-			{.pos = {-0.6f,  0.5f}, .tex_coord = {0.0f, 1.0f}},
+			{.pos = {-0.5f, -0.5f}, .tex_coord = {0.0f, 0.0f}},
+			{.pos = { 0.5f, -0.5f}, .tex_coord = {1.0f, 0.0f}},
+			{.pos = { 0.5f,  0.5f}, .tex_coord = {1.0f, 1.0f}},
+			{.pos = {-0.5f,  0.5f}, .tex_coord = {0.0f, 1.0f}},
 		};
 
 		create_render_buffer(vertices, sizeof(vertices), &c.vertex_buffer[0], VERTEX_BUFFER);
