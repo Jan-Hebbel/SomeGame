@@ -1740,11 +1740,11 @@ bool32 renderer_vulkan_init() {
 
 		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
 			VkDescriptorBufferInfo buffer_info{
-				.buffer = c.uniform_buffers[1].buffer[i], // @Cleanup: We reuse the first ubo. Do we need the second one we allocated on the stack in global_vulkan_context?
+				.buffer = c.uniform_buffers[1].buffer[i],
 				.offset = 0,
 				.range = sizeof(Uniform_Buffer_Object),
 			};
-			VkDescriptorImageInfo image_info{
+			VkDescriptorImageInfo image_info = {
 				.sampler = c.texture[1].sampler,
 				.imageView = c.texture[1].image_view,
 				.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
