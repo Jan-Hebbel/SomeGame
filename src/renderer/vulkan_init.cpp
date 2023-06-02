@@ -83,8 +83,7 @@ struct Texture {
 	VkSampler sampler;
 };
 
-struct Global_Vulkan_Context
-{
+struct Global_Vulkan_Context {
 	VkInstance instance;
 	VkDebugUtilsMessengerEXT debug_callback;
 	VkSurfaceKHR surface;
@@ -123,30 +122,29 @@ global_variable unsigned char ttf_buffer[1 << 20];
 global_variable unsigned char font_bitmap[1024 * 1024];
 global_variable stbtt_bakedchar data[96];
 
-struct QueueFamilyIndices
-{
+struct QueueFamilyIndices {
 	// fill this out as the need for more queue families arises
 	std::optional<uint32> graphics_family;
 	std::optional<uint32> present_family;
 };
 
-struct SwapchainDetails
-{
+struct SwapchainDetails {
 	std::vector<VkSurfaceFormatKHR> surface_formats;
 	std::vector<VkPresentModeKHR> present_modes;
 };
 
-struct Vertex
-{
+struct Vertex {
 	Vec2 pos;
 	Vec2 tex_coord;
 };
 
-struct Uniform_Buffer_Object
-{
-	Mat4 model;
+struct Uniform_Buffer_Object {
 	Mat4 view;
 	Mat4 proj;
+};
+
+struct Push_Constants {
+	Mat4 model;
 };
 
 global_variable const uint16 indices[] = {
@@ -444,8 +442,7 @@ void draw_frame(Game_State *game_state)
 	// Player
 	float scale = 3.0f;
 	float aspect = (float)c.swapchain_image_extent.width / (float)c.swapchain_image_extent.height;
-	Uniform_Buffer_Object ubo{
-		.model = transpose(translate({game_state->player.position.x, game_state->player.position.y, 0})),
+	Uniform_Buffer_Object ubo = {
 		.view = identity(),
 		// NOTE: Transposing here because my math library stores matrices in row major notation.
 		.proj = transpose(orthographic_projection(-aspect * scale, aspect * scale, -scale, scale, 0.1f, 2.0f)),
@@ -454,7 +451,6 @@ void draw_frame(Game_State *game_state)
 
 	// Background
 	ubo = { 
-		.model = identity(), 
 		.view = identity(), 
 		.proj = transpose(orthographic_projection(-aspect * scale, aspect * scale, -scale, scale, 0.1f, 2.0f))
 	};
@@ -513,6 +509,9 @@ void draw_frame(Game_State *game_state)
 		vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers2, offsets2);
 		vkCmdBindIndexBuffer(command_buffer, c.index_buffer[1].buffer, 0, VK_INDEX_TYPE_UINT16);
 		vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, c.pipeline_layout, 0, 1, &c.descriptor_sets[1][c.current_frame], 0, 0);
+		Push_Constants constants = {};
+		constants.model = identity();
+		vkCmdPushConstants(command_buffer, c.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, 64, &constants);
 
 		vkCmdDrawIndexed(command_buffer, sizeof(indices) / sizeof(indices[0]), 1, 0, 0, 0);
 
@@ -523,6 +522,8 @@ void draw_frame(Game_State *game_state)
 		vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers, offsets);
 		vkCmdBindIndexBuffer(command_buffer, c.index_buffer[0].buffer, 0, VK_INDEX_TYPE_UINT16);
 		vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, c.pipeline_layout, 0, 1, &c.descriptor_sets[0][c.current_frame], 0, 0); // holds uniforms (texture sampler, uniform buffers)
+		constants.model = transpose(translate({ game_state->player.position.x, game_state->player.position.y, 0 }));
+		vkCmdPushConstants(command_buffer, c.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(Push_Constants), &constants);
 
 		vkCmdDrawIndexed(command_buffer, sizeof(indices) / sizeof(indices[0]), 1, 0, 0, 0);
 	}
@@ -1457,10 +1458,18 @@ bool32 renderer_vulkan_init() {
 			.blendConstants = { 0.0f, 0.0f, 0.0f, 0.0f },
 		};
 
+		VkPushConstantRange range = {
+			.stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+			.offset = 0,
+			.size = 16 * sizeof(float) // 4 by 4 matrix with 4 bytes per float
+		};
+
 		VkPipelineLayoutCreateInfo pipeline_layout_info{
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
 			.setLayoutCount = 1,
 			.pSetLayouts = &c.descriptor_set_layout,
+			.pushConstantRangeCount = 1,
+			.pPushConstantRanges = &range
 		};
 
 		VkResult result = vkCreatePipelineLayout(c.device, &pipeline_layout_info, 0, &c.pipeline_layout);
