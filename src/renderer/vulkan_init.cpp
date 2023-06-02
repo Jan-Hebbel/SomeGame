@@ -70,10 +70,10 @@ struct Render_Buffer {
 	VkDeviceMemory memory;
 };
 
-struct Uniform_Buffers {
-	VkBuffer buffer[MAX_FRAMES_IN_FLIGHT];
-	VkDeviceMemory memory[MAX_FRAMES_IN_FLIGHT];
-	void *mapped[MAX_FRAMES_IN_FLIGHT];
+struct Uniform_Buffer {
+	VkBuffer buffer;
+	VkDeviceMemory memory;
+	void *mapped;
 };
 
 struct Texture {
@@ -111,7 +111,7 @@ struct Global_Vulkan_Context {
 	uint32 current_frame = 0;
 	Render_Buffer vertex_buffer[2];
 	Render_Buffer index_buffer[2];
-	Uniform_Buffers uniform_buffers[2];
+	Uniform_Buffer uniform_buffer[2];
 	Texture texture[2];
 };
 
@@ -435,26 +435,6 @@ void draw_frame(Game_State *game_state)
 		platform_log("Fatal: Failed to acquire the next image!\n");
 		assert(VK_SUCCESS == result);
 	}
-
-	//
-	// Update Uniform Buffers. (@Performance: Most efficient way to pass a frequently changing small amount of data to the shader are push constants)
-	//
-	// Player
-	float scale = 3.0f;
-	float aspect = (float)c.swapchain_image_extent.width / (float)c.swapchain_image_extent.height;
-	Uniform_Buffer_Object ubo = {
-		.view = identity(),
-		// NOTE: Transposing here because my math library stores matrices in row major notation.
-		.proj = transpose(orthographic_projection(-aspect * scale, aspect * scale, -scale, scale, 0.1f, 2.0f)),
-	};
-	memcpy(c.uniform_buffers[0].mapped[c.current_frame], &ubo, sizeof(ubo));
-
-	// Background
-	ubo = { 
-		.view = identity(), 
-		.proj = transpose(orthographic_projection(-aspect * scale, aspect * scale, -scale, scale, 0.1f, 2.0f))
-	};
-	memcpy(c.uniform_buffers[1].mapped[c.current_frame], &ubo, sizeof(ubo));
 
 	// 
 	// Draw. (Record command buffer that draws image.)
@@ -1626,20 +1606,29 @@ bool32 renderer_vulkan_init() {
 	// create uniform buffers
 	{
 		VkDeviceSize buffer_size = sizeof(Uniform_Buffer_Object);
-		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
-		{
-			create_buffer(buffer_size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, c.uniform_buffers[0].buffer[i], c.uniform_buffers[0].memory[i]);
 
-			vkMapMemory(c.device, c.uniform_buffers[0].memory[i], 0, buffer_size, 0, &c.uniform_buffers[0].mapped[i]);
-		}
+		create_buffer(buffer_size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, c.uniform_buffer[0].buffer, c.uniform_buffer[0].memory);
+		create_buffer(buffer_size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, c.uniform_buffer[1].buffer, c.uniform_buffer[1].memory);
 
-		buffer_size = sizeof(Uniform_Buffer_Object);
-		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i)
-		{
-			create_buffer(buffer_size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, c.uniform_buffers[1].buffer[i], c.uniform_buffers[1].memory[i]);
+		vkMapMemory(c.device, c.uniform_buffer[0].memory, 0, buffer_size, 0, &c.uniform_buffer[0].mapped);
+		vkMapMemory(c.device, c.uniform_buffer[1].memory, 0, buffer_size, 0, &c.uniform_buffer[1].mapped);
 
-			vkMapMemory(c.device, c.uniform_buffers[1].memory[i], 0, buffer_size, 0, &c.uniform_buffers[1].mapped[i]);
-		}
+		// Player
+		float scale = 3.0f;
+		float aspect = (float)c.swapchain_image_extent.width / (float)c.swapchain_image_extent.height;
+		Uniform_Buffer_Object ubo = {
+			.view = identity(),
+			// NOTE: Transposing here because my math library stores matrices in row major notation.
+			.proj = transpose(orthographic_projection(-aspect * scale, aspect * scale, -scale, scale, 0.1f, 2.0f)),
+		};
+		memcpy(c.uniform_buffer[0].mapped, &ubo, sizeof(ubo));
+
+		// Background
+		ubo = {
+			.view = identity(),
+			.proj = transpose(orthographic_projection(-aspect * scale, aspect * scale, -scale, scale, 0.1f, 2.0f))
+		};
+		memcpy(c.uniform_buffer[1].mapped, &ubo, sizeof(ubo));
 	}
 
 
@@ -1702,7 +1691,7 @@ bool32 renderer_vulkan_init() {
 
 		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
 			VkDescriptorBufferInfo buffer_info{
-				.buffer = c.uniform_buffers[0].buffer[i],
+				.buffer = c.uniform_buffer[0].buffer,
 				.offset = 0,
 				.range = sizeof(Uniform_Buffer_Object),
 			};
@@ -1749,7 +1738,7 @@ bool32 renderer_vulkan_init() {
 
 		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
 			VkDescriptorBufferInfo buffer_info{
-				.buffer = c.uniform_buffers[1].buffer[i],
+				.buffer = c.uniform_buffer[1].buffer,
 				.offset = 0,
 				.range = sizeof(Uniform_Buffer_Object),
 			};
