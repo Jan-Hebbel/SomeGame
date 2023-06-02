@@ -491,7 +491,7 @@ void draw_frame(Game_State *game_state)
 		vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, c.pipeline_layout, 0, 1, &c.descriptor_sets[1][c.current_frame], 0, 0);
 		Push_Constants constants = {};
 		constants.model = identity();
-		vkCmdPushConstants(command_buffer, c.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, 64, &constants);
+		vkCmdPushConstants(command_buffer, c.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(Push_Constants), &constants);
 
 		vkCmdDrawIndexed(command_buffer, sizeof(indices) / sizeof(indices[0]), 1, 0, 0, 0);
 
@@ -1622,6 +1622,7 @@ bool32 renderer_vulkan_init() {
 			.proj = transpose(orthographic_projection(-aspect * scale, aspect * scale, -scale, scale, 0.1f, 2.0f)),
 		};
 		memcpy(c.uniform_buffer[0].mapped, &ubo, sizeof(ubo));
+		vkUnmapMemory(c.device, c.uniform_buffer[0].memory);
 
 		// Background
 		ubo = {
@@ -1629,6 +1630,7 @@ bool32 renderer_vulkan_init() {
 			.proj = transpose(orthographic_projection(-aspect * scale, aspect * scale, -scale, scale, 0.1f, 2.0f))
 		};
 		memcpy(c.uniform_buffer[1].mapped, &ubo, sizeof(ubo));
+		vkUnmapMemory(c.device, c.uniform_buffer[1].memory);
 	}
 
 
