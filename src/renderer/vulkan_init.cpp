@@ -945,9 +945,9 @@ bool32 renderer_vulkan_init() {
 	const char *device_extensions[] = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 	uint device_extensions_size = sizeof(device_extensions) / sizeof(device_extensions[0]);
 
-
-
+	//
 	// create vulkan instance
+	//
 	{
 		VkApplicationInfo app_info{};
 		app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -1041,9 +1041,9 @@ bool32 renderer_vulkan_init() {
 		}
 	}
 
-
-
+	//
 	// create vulkan debug callback
+	//
 	{
 		if (enable_validation_layers)
 		{
@@ -1066,9 +1066,9 @@ bool32 renderer_vulkan_init() {
 		}
 	}
 
-
-
+	//
 	// create surface
+	//
 	{
 		WindowHandles *window_handles = (WindowHandles *)platform_get_window_handles();
 
@@ -1085,9 +1085,9 @@ bool32 renderer_vulkan_init() {
 		}
 	}
 
-
-
+	//
 	// pick physical device
+	//
 	{
 		uint32 physical_device_count = 0;
 		vkEnumeratePhysicalDevices(c.instance, &physical_device_count, 0);
@@ -1166,13 +1166,11 @@ bool32 renderer_vulkan_init() {
 		}
 	}
 
-
-
 	QueueFamilyIndices queue_family_indices = get_queue_family_indices(c.physical_device);
 
-
-
+	//
 	// create logical device
+	//
 	{
 		// queues to be created with the logical device
 		std::set<uint32_t> unique_queue_family_indices = { queue_family_indices.graphics_family.value(), queue_family_indices.present_family.value() };
@@ -1222,23 +1220,23 @@ bool32 renderer_vulkan_init() {
 		vkGetDeviceQueue(c.device, queue_family_indices.present_family.value(), 0, &c.present_queue);
 	}
 
-
-
+	//
 	// create swap chain
+	//
 	{
 		create_swapchain();
 	}
 
-
-
+	//
 	// create image views
+	//
 	{
 		create_image_views();
 	}
 
-
-
+	//
 	// create render pass
+	//
 	{
 		VkAttachmentDescription color_attachment_description{
 			.format = c.swapchain_image_format,
@@ -1289,9 +1287,9 @@ bool32 renderer_vulkan_init() {
 		}
 	}
 
-	
-
+	//
 	// create descriptor set layout
+	//
 	{
 		VkDescriptorSetLayoutBinding ubo_layout_binding{
 			.binding = 0,
@@ -1323,9 +1321,9 @@ bool32 renderer_vulkan_init() {
 		}
 	}
 
-
-
+	//
 	// create graphics pipeline
+	//
 	{
 		bool32 shader_created = GAME_FAILURE;
 
@@ -1486,16 +1484,16 @@ bool32 renderer_vulkan_init() {
 		vkDestroyShaderModule(c.device, fragment_shader_module, 0);
 	}
 
-
-
+	//
 	// create framebuffers
+	//
 	{
 		create_framebuffers();
 	}
 
-
-
+	//
 	// create command pool
+	//
 	{
 		VkCommandPoolCreateInfo pool_info{
 			.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
@@ -1511,9 +1509,9 @@ bool32 renderer_vulkan_init() {
 		}
 	}
 
-
-
+	//
 	// create texture image
+	//
 	{
 		int width, height, nr_channels;
 		bool result;
@@ -1531,9 +1529,9 @@ bool32 renderer_vulkan_init() {
 		}
 	}
 
-
-
+	//
 	// create texture image view
+	//
 	{
 		bool result; 
 
@@ -1550,9 +1548,9 @@ bool32 renderer_vulkan_init() {
 		}
 	}
 
-
-
+	//
 	// create texture sampler
+	//
 	{
 		bool result;
 		result = create_texture_image_sampler(&c.texture[0]); // Player
@@ -1601,9 +1599,9 @@ bool32 renderer_vulkan_init() {
 		create_render_buffer(indices, sizeof(indices), &c.index_buffer[1], INDEX_BUFFER);
 	}
 
-
-
+	//
 	// create uniform buffers
+	//
 	{
 		VkDeviceSize buffer_size = sizeof(Uniform_Buffer_Object);
 
@@ -1633,9 +1631,9 @@ bool32 renderer_vulkan_init() {
 		vkUnmapMemory(c.device, c.uniform_buffer[1].memory);
 	}
 
-
-
+	//
 	// create descriptor pool
+	//
 	{
 		VkDescriptorPoolSize pool_sizes[] = {
 			{
@@ -1670,9 +1668,9 @@ bool32 renderer_vulkan_init() {
 		}
 	}
 
-
-
+	//
 	// create descriptor sets
+	//
 	{
 		VkDescriptorSetLayout layouts[MAX_FRAMES_IN_FLIGHT];
 		for (uint32 i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
@@ -1773,9 +1771,9 @@ bool32 renderer_vulkan_init() {
 		}
 	}
 
-
-
+	//
 	// create command buffers
+	//
 	{
 		c.command_buffers.resize(MAX_FRAMES_IN_FLIGHT);
 
@@ -1794,9 +1792,9 @@ bool32 renderer_vulkan_init() {
 		}
 	}
 
-
-
+	//
 	// create synchronization objects
+	//
 	{
 		c.image_available_semaphores.resize(MAX_FRAMES_IN_FLIGHT);
 		c.render_finished_semaphores.resize(MAX_FRAMES_IN_FLIGHT);
