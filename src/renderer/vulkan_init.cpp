@@ -1612,7 +1612,7 @@ bool32 renderer_vulkan_init() {
 		size_t ubo_size = sizeof(ubo);
 		Uniform_Buffer *uniform = &c.uniform_buffer;
 
-		// creating uniform buffer here
+		// creating uniform buffer here (takes ubo, ubo_size, uniform as parameters)
 		create_buffer(ubo_size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, uniform->buffer, uniform->memory);
 
 		vkMapMemory(c.device, uniform->memory, 0, ubo_size, 0, &uniform->mapped);
