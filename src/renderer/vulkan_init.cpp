@@ -1613,11 +1613,21 @@ bool32 renderer_vulkan_init() {
 		Uniform_Buffer *uniform = &c.uniform_buffer;
 
 		// creating uniform buffer here (takes ubo, ubo_size, uniform as parameters)
-		create_buffer(ubo_size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, uniform->buffer, uniform->memory);
+		VkBuffer staging_buffer;
+		VkDeviceMemory staging_buffer_memory;
+		create_buffer(ubo_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, staging_buffer, staging_buffer_memory);
 
-		vkMapMemory(c.device, uniform->memory, 0, ubo_size, 0, &uniform->mapped);
-		memcpy(uniform->mapped, &ubo, ubo_size);
-		vkUnmapMemory(c.device, uniform->memory);
+		void *data;
+		vkMapMemory(c.device, staging_buffer_memory, 0, static_cast<uint64_t>(ubo_size), 0, &data);
+		memcpy(data, &ubo, ubo_size);
+		vkUnmapMemory(c.device, staging_buffer_memory);
+
+		create_buffer(ubo_size, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, uniform->buffer, uniform->memory);
+
+		copy_buffer(staging_buffer, uniform->buffer, ubo_size);
+
+		vkDestroyBuffer(c.device, staging_buffer, 0);
+		vkFreeMemory(c.device, staging_buffer_memory, 0);
 	}
 
 	//
