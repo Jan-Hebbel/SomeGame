@@ -104,7 +104,7 @@ struct Global_Vulkan_Context {
 	VkPipeline graphics_pipeline;
 	std::vector<VkFramebuffer> swapchain_framebuffers;
 	VkCommandPool command_pool;
-	std::vector<VkCommandBuffer> command_buffers;
+	VkCommandBuffer command_buffers[MAX_FRAMES_IN_FLIGHT];
 	VkSemaphore image_available_semaphores[MAX_FRAMES_IN_FLIGHT];
 	VkSemaphore render_finished_semaphores[MAX_FRAMES_IN_FLIGHT];
 	VkFence in_flight_fences[MAX_FRAMES_IN_FLIGHT];
@@ -1774,16 +1774,14 @@ bool32 renderer_vulkan_init() {
 	// create command buffers
 	//
 	{
-		c.command_buffers.resize(MAX_FRAMES_IN_FLIGHT);
-
 		VkCommandBufferAllocateInfo allocate_info{
 			.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
 			.commandPool = c.command_pool,
 			.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-			.commandBufferCount = static_cast<uint32_t>(c.command_buffers.size()),
+			.commandBufferCount = MAX_FRAMES_IN_FLIGHT, // count of command_buffer
 		};
 
-		VkResult result = vkAllocateCommandBuffers(c.device, &allocate_info, c.command_buffers.data());
+		VkResult result = vkAllocateCommandBuffers(c.device, &allocate_info, c.command_buffers);
 		if (result != VK_SUCCESS)
 		{
 			platform_log("Fatal: Failed to allocate command buffers!\n");
