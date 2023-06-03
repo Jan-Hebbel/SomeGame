@@ -105,9 +105,9 @@ struct Global_Vulkan_Context {
 	std::vector<VkFramebuffer> swapchain_framebuffers;
 	VkCommandPool command_pool;
 	std::vector<VkCommandBuffer> command_buffers;
-	std::vector<VkSemaphore> image_available_semaphores;
-	std::vector<VkSemaphore> render_finished_semaphores;
-	std::vector<VkFence> in_flight_fences;
+	VkSemaphore image_available_semaphores[MAX_FRAMES_IN_FLIGHT];
+	VkSemaphore render_finished_semaphores[MAX_FRAMES_IN_FLIGHT];
+	VkFence in_flight_fences[MAX_FRAMES_IN_FLIGHT];
 	uint32 current_frame = 0;
 	Render_Buffer vertex_buffer[2];
 	Render_Buffer index_buffer[2];
@@ -1795,10 +1795,6 @@ bool32 renderer_vulkan_init() {
 	// create synchronization objects
 	//
 	{
-		c.image_available_semaphores.resize(MAX_FRAMES_IN_FLIGHT);
-		c.render_finished_semaphores.resize(MAX_FRAMES_IN_FLIGHT);
-		c.in_flight_fences.resize(MAX_FRAMES_IN_FLIGHT);
-
 		VkSemaphoreCreateInfo semaphore_info{
 			.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
 		};
