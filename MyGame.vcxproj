@@ -120,6 +120,7 @@
     <ClInclude Include="src\game.hpp" />
     <ClInclude Include="src\renderer.hpp" />
     <ClInclude Include="src\math.hpp" />
+    <ClInclude Include="src\renderer\vulkan_init.hpp" />
     <ClInclude Include="src\types.hpp" />
     <ClInclude Include="src\platform.hpp" />
   </ItemGroup>
