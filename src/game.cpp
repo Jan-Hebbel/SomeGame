@@ -3,7 +3,6 @@
 #include "types.hpp"
 #include "input.hpp"
 #include "math.hpp"
-#include "platform/platform.hpp"
 
 Perf_Metrics perf_metrics = {};
 

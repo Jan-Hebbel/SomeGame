@@ -18,14 +18,12 @@
 	- ...
 */
 
-#include "platform/platform.hpp"
+#include "platform.hpp"
 
 #include "types.hpp"
 #include "input.hpp"
 #include "game.hpp"
-#include "renderer/vulkan_init.hpp"
-#include "renderer/vulkan_draw.hpp"
-#include "platform/platform_logger.hpp"
+#include "renderer.hpp"
 
 #include <windows.h>
 #include <xaudio2.h>

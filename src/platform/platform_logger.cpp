@@ -1,6 +1,5 @@
-#include "platform/platform_logger.hpp"
+#include "platform.hpp"
 
-#include "platform/platform.hpp"
 #include "types.hpp"
 
 #include <windows.h>

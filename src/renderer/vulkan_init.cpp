@@ -13,7 +13,7 @@
 #include "types.hpp"
 #include "math.hpp"
 #include "game.hpp"
-#include "renderer/vulkan_draw.hpp"
+#include "renderer/renderer.hpp"
 #include "platform/platform.hpp"
 
 #define STB_TRUETYPE_IMPLEMENTATION

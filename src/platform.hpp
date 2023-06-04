@@ -22,4 +22,7 @@ void platform_error_message_window(const char *title, const char *message);
 File_Asset *platform_read_file(const char *file_path, uint32 *bytes_read);
 void platform_free_file(File_Asset *file);
 
+void platform_logging_init();
+void platform_logging_free();
+
 #endif

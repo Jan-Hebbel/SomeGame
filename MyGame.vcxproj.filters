@@ -36,21 +36,18 @@
     <ClCompile Include="src\input.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\renderer\vulkan_renderer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\game.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\platform\platform.hpp">
+    <ClInclude Include="src\platform.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\types.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\platform\platform_logger.hpp">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\renderer\vulkan_draw.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\lib\stb_truetype.h">
@@ -65,7 +62,7 @@
     <ClInclude Include="src\input.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\renderer\vulkan_init.hpp">
+    <ClInclude Include="src\renderer.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
