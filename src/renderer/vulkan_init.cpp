@@ -27,13 +27,13 @@
 #endif
 #include <vulkan/vulkan.h>
 
-#include "renderer/vulkan_init.hpp"
+#include "renderer.hpp"
 
 #include "types.hpp"
 #include "math.hpp"
 #include "game.hpp"
-#include "renderer.hpp"
 #include "platform.hpp"
+#include "renderer/vulkan_init.hpp"
 
 #define STB_TRUETYPE_IMPLEMENTATION
 #include <lib/stb_truetype.h>
