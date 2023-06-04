@@ -3,7 +3,6 @@
 #include "types.hpp"
 #include "input.hpp"
 #include "math.hpp"
-#include "renderer/vulkan_draw.hpp"
 #include "platform/platform.hpp"
 
 Perf_Metrics perf_metrics = {};
@@ -40,24 +39,4 @@ void game_update(Game_State *game_state, real64 delta_time)
 	game_state->player.position = game_state->player.position + game_state->player.speed * (float)delta_time * normalize(plus_minus);
 
 	event_queue_clear();
-}
-
-void game_render(Game_State *game_state)
-{
-	Window_Dimensions dimensions = {};
-	platform_get_window_dimensions(&dimensions);
-	if (dimensions.width == 0 || dimensions.height == 0) return;
-
-	switch (game_state->mode)
-	{
-		case MODE_PLAY:
-		{
-			draw_frame(game_state);
-		} break;
-
-		default:
-		{
-			platform_log("Different Game Modes not yet supported!");
-		} break;
-	}
 }

@@ -40,6 +40,5 @@ extern Perf_Metrics perf_metrics;
 //
 
 void game_update(Game_State *game_state, real64 delta_time);
-void game_render(Game_State *game_state);
 
 #endif

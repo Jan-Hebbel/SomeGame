@@ -403,42 +403,13 @@ void recreate_swapchain()
 	create_framebuffers();
 }
 
-void draw_frame(Game_State *game_state)
-{
-	// 
-	// Wait for the previous frame to finish.
-	//
+// Waits until the current frame is not in use
+void wait_for_current_frame_to_finish() {
 	vkWaitForFences(c.device, 1, &c.in_flight_fences[c.current_frame], VK_TRUE, UINT64_MAX);
 	vkResetFences(c.device, 1, &c.in_flight_fences[c.current_frame]);
+}
 
-	//
-	// Recreate the swapchain if the swapchain is outdated (resizing or minimizing window).
-	//
-	static bool swapchain_outdated = false;
-	if (swapchain_outdated)
-	{
-		recreate_swapchain();
-	}
-
-	//
-	// Acquire an image from the swapchain.
-	//
-	uint32 image_index;
-	VkResult result = vkAcquireNextImageKHR(c.device, c.swapchain, UINT64_MAX, c.image_available_semaphores[c.current_frame], VK_NULL_HANDLE, &image_index);
-	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
-	{
-		swapchain_outdated = true;
-		return;
-	}
-	else if (result != VK_SUCCESS)
-	{
-		platform_log("Fatal: Failed to acquire the next image!\n");
-		assert(VK_SUCCESS == result);
-	}
-
-	// 
-	// Draw. (Record command buffer that draws image.)
-	//
+void draw_game(Game_State *game_state, uint32_t image_index) {
 	VkCommandBuffer command_buffer = c.command_buffers[c.current_frame];
 	vkResetCommandBuffer(command_buffer, 0);
 
@@ -446,7 +417,7 @@ void draw_frame(Game_State *game_state)
 		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
 	};
 
-	result = vkBeginCommandBuffer(command_buffer, &begin_info);
+	VkResult result = vkBeginCommandBuffer(command_buffer, &begin_info);
 	if (VK_SUCCESS != result)
 	{
 		platform_log("Fatal: Failed to begin command buffer!\n");
@@ -515,6 +486,70 @@ void draw_frame(Game_State *game_state)
 	{
 		platform_log("Fatal: Failed to end command buffer!\n");
 		assert(VK_SUCCESS == result);
+	}
+}
+
+void draw_menu(Game_State *game_state) {
+
+}
+
+void game_render(Game_State *game_state)
+{
+	//
+	// Don't render when game is minimized.
+	//
+	Window_Dimensions dimensions = {};
+	platform_get_window_dimensions(&dimensions);
+	if (dimensions.width == 0 || dimensions.height == 0) return;
+
+	// 
+	// Wait until current frame is not in use.
+	//
+	wait_for_current_frame_to_finish();
+
+	//
+	// Recreate the swapchain if the swapchain is outdated (resizing or minimizing window).
+	//
+	static bool swapchain_outdated = false;
+	if (swapchain_outdated)
+	{
+		recreate_swapchain();
+	}
+
+	//
+	// Acquire an image from the swapchain.
+	//
+	uint32 image_index;
+	VkResult result = vkAcquireNextImageKHR(c.device, c.swapchain, UINT64_MAX, c.image_available_semaphores[c.current_frame], VK_NULL_HANDLE, &image_index);
+	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
+	{
+		swapchain_outdated = true;
+		return;
+	}
+	else if (result != VK_SUCCESS)
+	{
+		platform_log("Fatal: Failed to acquire the next image!\n");
+		assert(VK_SUCCESS == result);
+	}
+
+	// 
+	// Draw. (Record command buffer that draws image.)
+	//
+	switch (game_state->mode) {
+		case MODE_PLAY: {
+			draw_game(game_state, image_index);
+			break;
+		} 
+		
+		case MODE_MENU: {
+			draw_menu(game_state);
+			break;
+		}
+
+		default: {
+			platform_log("Different Game Modes not yet supported!");
+			break;
+		}
 	}
 
 	//

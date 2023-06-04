@@ -24,6 +24,7 @@
 #include "input.hpp"
 #include "game.hpp"
 #include "renderer/vulkan_init.hpp"
+#include "renderer/vulkan_draw.hpp"
 #include "platform/platform_logger.hpp"
 
 #include <windows.h>

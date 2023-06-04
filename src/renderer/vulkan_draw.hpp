@@ -4,8 +4,8 @@
 #include "game.hpp"
 
 // 
-// Functions that provided from renderer
+// Functions that are provided by the renderer
 //
-void draw_frame(Game_State *game_state);
+void game_render(Game_State *game_state);
 
 #endif
