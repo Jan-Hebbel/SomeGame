@@ -5,14 +5,14 @@
 
 #include <vulkan/vulkan.h>
 
-// Waits until the current frame is not in use
+#include <assert.h>
+
 void wait_for_current_frame_to_finish() {
 	vkWaitForFences(c.device, 1, &c.in_flight_fences[c.current_frame], VK_TRUE, UINT64_MAX);
 	vkResetFences(c.device, 1, &c.in_flight_fences[c.current_frame]);
 }
 
-void recreate_swapchain()
-{
+void recreate_swapchain() {
 	vkDeviceWaitIdle(c.device);
 
 	cleanup_swapchain();
@@ -22,7 +22,7 @@ void recreate_swapchain()
 	create_framebuffers();
 }
 
-void draw_game(Game_State *game_state, uint32_t image_index) {
+VkCommandBuffer begin_render_pass(VkClearValue *clear_values, uint32_t image_index) {
 	VkCommandBuffer command_buffer = c.command_buffers[c.current_frame];
 	vkResetCommandBuffer(command_buffer, 0);
 
@@ -35,9 +35,8 @@ void draw_game(Game_State *game_state, uint32_t image_index) {
 	{
 		platform_log("Fatal: Failed to begin command buffer!\n");
 		assert(result == VK_SUCCESS);
+		return command_buffer;
 	}
-
-	VkClearValue clear_color{ {{0.0f, 0.0f, 0.0f, 1.0f}} };
 
 	VkRenderPassBeginInfo render_pass_info{
 		.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
@@ -45,56 +44,17 @@ void draw_game(Game_State *game_state, uint32_t image_index) {
 		.framebuffer = c.swapchain_framebuffers[image_index],
 		.renderArea = { {0, 0}, c.swapchain_image_extent },
 		.clearValueCount = 1,
-		.pClearValues = &clear_color,
+		.pClearValues = clear_values,
 	};
-
 	vkCmdBeginRenderPass(command_buffer, &render_pass_info, VK_SUBPASS_CONTENTS_INLINE);
 
-	{
-		vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, c.graphics_pipeline);
+	return command_buffer;
+}
 
-		VkViewport viewport{
-			.x = 0.0f, .y = 0.0f,
-			.width = static_cast<float>(c.swapchain_image_extent.width),
-			.height = static_cast<float>(c.swapchain_image_extent.height),
-			.minDepth = 0.0f, .maxDepth = 1.0f
-		};
-		vkCmdSetViewport(command_buffer, 0, 1, &viewport);
-
-		VkRect2D scissor{
-			.offset = { 0, 0 },
-			.extent = c.swapchain_image_extent,
-		};
-		vkCmdSetScissor(command_buffer, 0, 1, &scissor);
-
-		// Draw background
-		VkBuffer vertex_buffers2[] = { c.vertex_buffer[1].buffer };
-		VkDeviceSize offsets2[] = { 0 };
-		vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers2, offsets2);
-		vkCmdBindIndexBuffer(command_buffer, c.index_buffer[1].buffer, 0, VK_INDEX_TYPE_UINT16);
-		vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, c.pipeline_layout, 0, 1, &c.descriptor_sets[1][c.current_frame], 0, 0);
-		Push_Constants constants = {};
-		constants.model = identity();
-		vkCmdPushConstants(command_buffer, c.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(Push_Constants), &constants);
-
-		vkCmdDrawIndexed(command_buffer, 6, 1, 0, 0, 0); // @Hardcode: 6 == count of indices
-
-		// Draw player
-		VkBuffer vertex_buffers[] = { c.vertex_buffer[0].buffer };
-		VkDeviceSize offsets[] = { 0 };
-
-		vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers, offsets);
-		vkCmdBindIndexBuffer(command_buffer, c.index_buffer[0].buffer, 0, VK_INDEX_TYPE_UINT16);
-		vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, c.pipeline_layout, 0, 1, &c.descriptor_sets[0][c.current_frame], 0, 0); // holds uniforms (texture sampler, uniform buffers)
-		constants.model = transpose(translate({ game_state->player.position.x, game_state->player.position.y, 0 }));
-		vkCmdPushConstants(command_buffer, c.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(Push_Constants), &constants);
-
-		vkCmdDrawIndexed(command_buffer, 6, 1, 0, 0, 0); // @Hardcode: 6 == count of indices
-	}
-
+void end_render_pass(VkCommandBuffer command_buffer) {
 	vkCmdEndRenderPass(command_buffer);
 
-	result = vkEndCommandBuffer(command_buffer);
+	VkResult result = vkEndCommandBuffer(command_buffer);
 	if (VK_SUCCESS != result)
 	{
 		platform_log("Fatal: Failed to end command buffer!\n");
@@ -102,8 +62,98 @@ void draw_game(Game_State *game_state, uint32_t image_index) {
 	}
 }
 
-void draw_menu(Game_State *game_state) {
+void draw_game(Game_State *game_state, uint32_t image_index) {
+	VkClearValue clear_color = { 0.05f, 0.3f, 0.3f, 1.0f };
+	VkCommandBuffer command_buffer = begin_render_pass(&clear_color, image_index);
 
+	vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, c.graphics_pipeline);
+
+	VkViewport viewport{
+		.x = 0.0f, .y = 0.0f,
+		.width = static_cast<float>(c.swapchain_image_extent.width),
+		.height = static_cast<float>(c.swapchain_image_extent.height),
+		.minDepth = 0.0f, .maxDepth = 1.0f
+	};
+	vkCmdSetViewport(command_buffer, 0, 1, &viewport);
+
+	VkRect2D scissor{
+		.offset = { 0, 0 },
+		.extent = c.swapchain_image_extent,
+	};
+	vkCmdSetScissor(command_buffer, 0, 1, &scissor);
+
+	// Draw background
+	VkBuffer vertex_buffers2[] = { c.vertex_buffer[1].buffer };
+	VkDeviceSize offsets2[] = { 0 };
+	vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers2, offsets2);
+	vkCmdBindIndexBuffer(command_buffer, c.index_buffer[1].buffer, 0, VK_INDEX_TYPE_UINT16);
+	vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, c.pipeline_layout, 0, 1, &c.descriptor_sets[1][c.current_frame], 0, 0);
+	Push_Constants constants = {};
+	constants.model = identity();
+	vkCmdPushConstants(command_buffer, c.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(Push_Constants), &constants);
+
+	vkCmdDrawIndexed(command_buffer, 6, 1, 0, 0, 0); // @Hardcode: 6 == count of indices
+
+	// Draw player
+	VkBuffer vertex_buffers[] = { c.vertex_buffer[0].buffer };
+	VkDeviceSize offsets[] = { 0 };
+
+	vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers, offsets);
+	vkCmdBindIndexBuffer(command_buffer, c.index_buffer[0].buffer, 0, VK_INDEX_TYPE_UINT16);
+	vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, c.pipeline_layout, 0, 1, &c.descriptor_sets[0][c.current_frame], 0, 0); // holds uniforms (texture sampler, uniform buffers)
+	constants.model = transpose(translate({ game_state->player.position.x, game_state->player.position.y, 0 }));
+	vkCmdPushConstants(command_buffer, c.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(Push_Constants), &constants);
+
+	vkCmdDrawIndexed(command_buffer, 6, 1, 0, 0, 0); // @Hardcode: 6 == count of indices
+
+	end_render_pass(command_buffer);
+}
+
+void draw_menu(Game_State *game_state, uint32_t image_index) {
+	VkClearValue clear_color{ {{0.05f, 0.3f, 0.3f, 1.0f}} };
+	VkCommandBuffer command_buffer = begin_render_pass(&clear_color, image_index);
+	
+	vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, c.graphics_pipeline);
+
+	VkViewport viewport{
+		.x = 0.0f, .y = 0.0f,
+		.width = static_cast<float>(c.swapchain_image_extent.width),
+		.height = static_cast<float>(c.swapchain_image_extent.height),
+		.minDepth = 0.0f, .maxDepth = 1.0f
+	};
+	vkCmdSetViewport(command_buffer, 0, 1, &viewport);
+
+	VkRect2D scissor{
+		.offset = { 0, 0 },
+		.extent = c.swapchain_image_extent,
+	};
+	vkCmdSetScissor(command_buffer, 0, 1, &scissor);
+
+	// Draw background
+	VkBuffer vertex_buffers2[] = { c.vertex_buffer[1].buffer };
+	VkDeviceSize offsets2[] = { 0 };
+	vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers2, offsets2);
+	vkCmdBindIndexBuffer(command_buffer, c.index_buffer[1].buffer, 0, VK_INDEX_TYPE_UINT16);
+	vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, c.pipeline_layout, 0, 1, &c.descriptor_sets[1][c.current_frame], 0, 0);
+	Push_Constants constants = {};
+	constants.model = identity();
+	vkCmdPushConstants(command_buffer, c.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(Push_Constants), &constants);
+
+	vkCmdDrawIndexed(command_buffer, 6, 1, 0, 0, 0); // @Hardcode: 6 == count of indices
+
+	// Draw player
+	VkBuffer vertex_buffers[] = { c.vertex_buffer[0].buffer };
+	VkDeviceSize offsets[] = { 0 };
+
+	vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers, offsets);
+	vkCmdBindIndexBuffer(command_buffer, c.index_buffer[0].buffer, 0, VK_INDEX_TYPE_UINT16);
+	vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, c.pipeline_layout, 0, 1, &c.descriptor_sets[0][c.current_frame], 0, 0); // holds uniforms (texture sampler, uniform buffers)
+	constants.model = transpose(translate({ game_state->player.position.x, game_state->player.position.y, 0 }));
+	vkCmdPushConstants(command_buffer, c.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(Push_Constants), &constants);
+
+	vkCmdDrawIndexed(command_buffer, 6, 1, 0, 0, 0); // @Hardcode: 6 == count of indices
+
+	end_render_pass(command_buffer);
 }
 
 void game_render(Game_State *game_state)
@@ -155,7 +205,7 @@ void game_render(Game_State *game_state)
 		}
 
 		case MODE_MENU: {
-			draw_menu(game_state);
+			draw_menu(game_state, image_index);
 			break;
 		}
 
