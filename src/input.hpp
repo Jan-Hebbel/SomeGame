@@ -34,20 +34,25 @@ enum Key_Code {
 	KEY_CODE_AMOUNT = 7
 };
 
+struct Key_State {
+	bool is_down;
+	bool released;
+	bool repeated;
+	bool alt_down;
+};
+
 struct Event { // @Incomplete: key_is_down is currently not needed; refactor and keep it or discard it?
 	Key_Code key_code;
-	bool key_is_down; // if not down then key was released
+	Key_State key_state;
 };
 
 struct Event_Reader { // typedef better? @Cleanup
 	int index;
 };
 
-void process_key_event(Key_Code key_code, bool is_down);
-void input_add_events(Event_Reader *event_reader);
+void process_key_event(Key_Code key_code, Key_State key_state, Event_Reader *event_reader);
 Event event_queue_next(Event_Reader *event_reader);
-void event_queue_add(Event new_event, Event_Reader *event_reader);
-void event_queue_clear();
+Key_State get_key_state(Key_Code key_code);
 
 #endif
 

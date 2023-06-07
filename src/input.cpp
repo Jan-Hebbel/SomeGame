@@ -1,24 +1,19 @@
 #include "input.hpp"
 
 #include "types.hpp"
+#include "platform.hpp"
 
 Event event_queue[EVENT_QUEUE_SIZE];
-bool keyboard_state[KEY_CODE_AMOUNT];
+Key_State keyboard_state[KEY_CODE_AMOUNT];
 
-void process_key_event(Key_Code key_code, bool is_down) {
-	keyboard_state[key_code] = is_down;
-}
-
-void input_add_events(Event_Reader *event_reader) {
-	for (int i = 0; i < KEY_CODE_AMOUNT; ++i) {
-		if (keyboard_state[i]) {
-			event_queue_add({ (Key_Code)i, true }, event_reader);
-		}
-	}
+void process_key_event(Key_Code key_code, Key_State key_state, Event_Reader *event_reader) { // @Cleanup flags or Key_Status?
+	keyboard_state[key_code] = key_state; // set keyboard_state (this is for moving and the similar, since this works every frame)
+	event_queue[event_reader->index++] = { key_code, key_state }; // adding events to the event queue; only called every few frames
 }
 
 Event event_queue_next(Event_Reader *event_reader) {
-	Event dummy = { UNKNOWN, false };
+	Key_State key_state_all_false = {};
+	Event dummy = { UNKNOWN, key_state_all_false };
 
 	if (event_reader->index < 0 || event_reader->index >= EVENT_QUEUE_SIZE) {
 		return dummy;
@@ -26,16 +21,22 @@ Event event_queue_next(Event_Reader *event_reader) {
 
 	int old_index = event_reader->index++;
 
-	return event_queue[old_index];
+	Event old_event = event_queue[old_index];
+	event_queue[old_index] = { UNKNOWN, key_state_all_false };
+	return old_event;
 }
 
-void event_queue_add(Event new_event, Event_Reader *event_reader) {
-	event_queue[event_reader->index++] = new_event;
+Key_State get_key_state(Key_Code key_code) {
+	return keyboard_state[key_code];
 }
 
-void event_queue_clear() { // @Cleanup: keep this or set event_queue[event_reader->index].key_code to UNKNOWN in event_queue_next()?
-	for (int i = 0; i < EVENT_QUEUE_SIZE; ++i)
-	{
-		event_queue[i] = { UNKNOWN, false };
-	}
-}
+//void event_queue_clear() { // @Cleanup: keep this or set event_queue[event_reader->index].key_code to UNKNOWN in event_queue_next()?
+//	for (int i = 0; i < EVENT_QUEUE_SIZE; ++i) {
+//		event_queue[i] = { UNKNOWN, { false, false, false, false } };
+//	}
+//
+//	//for (int i = 0; i < KEY_CODE_AMOUNT; ++i) {
+//	//	platform_log("keyboard_state: \n");
+//	//	platform_log("\tkeyboard_state[%d]: %d\n", i, keyboard_state[i]);
+//	//}
+//}

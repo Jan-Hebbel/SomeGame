@@ -388,6 +388,8 @@ internal_function bool32 platform_create_window(const char *title, int width, in
 
 internal_function void platform_process_events(Game_State *game_state, float delta_time)
 {
+	Event_Reader event_reader = {};
+
 	MSG message;
 	while (PeekMessage(&message, 0, 0, 0, PM_REMOVE)) 
 	{
@@ -412,6 +414,13 @@ internal_function void platform_process_events(Game_State *game_state, float del
 				bool is_down = !released;
 				bool repeated = ((key_flags & KF_REPEAT) == KF_REPEAT) && !released;
 				bool alt_down = (key_flags & KF_ALTDOWN) == KF_ALTDOWN;
+				
+				Key_State key_state = {
+					.is_down  = is_down,
+					.released = released,
+					.repeated = repeated,
+					.alt_down = alt_down
+				};
 
 				// NOTE: holding down e.g. w and then while still holding w, holding down a will result in vkcode == a
 				// to move at the same time with a and w, use: while (vkCode == 'W' && !released)
@@ -419,23 +428,23 @@ internal_function void platform_process_events(Game_State *game_state, float del
 
 				switch (vk_code) {
 					case 'W': {
-						process_key_event(W, is_down);
+						process_key_event(W, key_state, &event_reader);
 					} break;
 
 					case 'A': {
-						process_key_event(A, is_down);
+						process_key_event(A, key_state, &event_reader);
 					} break;
 
 					case 'S': {
-						process_key_event(S, is_down);
+						process_key_event(S, key_state, &event_reader);
 					} break;
 
 					case 'D': {
-						process_key_event(D, is_down);
+						process_key_event(D, key_state, &event_reader);
 					} break;
 
 					case VK_ESCAPE: {
-						process_key_event(ESCAPE, is_down);
+						process_key_event(ESCAPE, key_state, &event_reader);
 					} break;
 
 					case VK_F4: {
@@ -455,9 +464,6 @@ internal_function void platform_process_events(Game_State *game_state, float del
 			} break;
 		}
 	}
-
-	Event_Reader event_reader = {};
-	input_add_events(&event_reader);
 }
 
 File_Asset *platform_read_file(const char *file_path, uint32 *bytes_read)
