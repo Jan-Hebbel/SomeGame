@@ -41,7 +41,7 @@ struct Key_State {
 	bool alt_down;
 };
 
-struct Event { // @Incomplete: key_is_down is currently not needed; refactor and keep it or discard it?
+struct Event { 
 	Key_Code key_code;
 	Key_State key_state;
 };
