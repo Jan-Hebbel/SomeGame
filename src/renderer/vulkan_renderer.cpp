@@ -7,6 +7,7 @@
 #include <vulkan/vulkan.h>
 
 #include <assert.h>
+#include <stdarg.h>
 
 void wait_for_current_frame_to_finish() {
 	vkWaitForFences(c.device, 1, &c.in_flight_fences[c.current_frame], VK_TRUE, UINT64_MAX);
@@ -39,7 +40,7 @@ VkCommandBuffer begin_render_pass(VkClearValue *clear_values, uint32_t image_ind
 		return command_buffer;
 	}
 
-	VkRenderPassBeginInfo render_pass_info{
+	VkRenderPassBeginInfo render_pass_info = {
 		.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
 		.renderPass = c.render_pass,
 		.framebuffer = c.swapchain_framebuffers[image_index],
@@ -119,15 +120,31 @@ void draw_menu(Game_State *game_state, uint32_t image_index) {
 	end_render_pass(command_buffer);
 }
 
-void draw_text(Vec2 top_left, uint font_height, const char *format, ...) {
+char *get_format_as_string(const char *format, ...) {
+	va_list arg_ptr;
+	va_start(arg_ptr, format);
 
+	uint size = 1 + vsnprintf(0, 0, format, arg_ptr);
+	char *out_message = new char[size];
+	vsnprintf(out_message, static_cast<size_t>(size), format, arg_ptr);
+	
+	va_end(arg_ptr);
+	
+	return out_message;
+}
+
+void draw_text(Vec2 top_left, uint font_height, const char *text) {
+	platform_log(text);
+	platform_log("\n");
 }
 
 void draw_performance_metrics(Game_State *game_state, uint32_t image_index) {
-	VkClearValue clear_value = { {{0.0f, 0.0f, 0.0f, 1.0f}} };
+	VkClearValue clear_value = { {{0.0f, 0.0f, 0.0f, 0.0f}} };
 	VkCommandBuffer command_buffer = begin_render_pass(&clear_value, image_index);
 
-	draw_text({0.01f, 0.01f}, 10 /*pixel high*/, "%.2f fps", perf_metrics.fps);
+	char *text = get_format_as_string("%.2f ms", perf_metrics.ms_per_frame);
+	draw_text({0.01f, 0.01f}, 10 /*pixels*/, text);
+	delete[] text;
 
 	end_render_pass(command_buffer);
 }
@@ -153,6 +170,7 @@ void game_render(Game_State *game_state)
 	if (swapchain_outdated)
 	{
 		recreate_swapchain();
+		swapchain_outdated = false;
 	}
 
 	//
@@ -190,6 +208,7 @@ void game_render(Game_State *game_state)
 			break;
 		}
 	}
+	draw_performance_metrics(game_state, image_index);
 
 	//
 	// Submit the draw command.
