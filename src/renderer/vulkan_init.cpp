@@ -35,10 +35,9 @@
 #include "platform.hpp"
 #include "renderer/vulkan_init.hpp"
 
-#define STB_TRUETYPE_IMPLEMENTATION
-#include <lib/stb_truetype.h>
 #define STB_IMAGE_IMPLEMENTATION
 #include <lib/stb_image.h>
+#include <lib/stb_truetype.h>
 
 #include <vector>
 #include <string>
@@ -60,11 +59,6 @@ constexpr bool enable_validation_layers = false;
 #endif
 
 Global_Vulkan_Context c{};
-
-// @Cleanup: temporary solution
-global_variable unsigned char ttf_buffer[1 << 20];
-global_variable unsigned char font_bitmap[1024 * 1024];
-global_variable stbtt_bakedchar data[96];
 
 struct QueueFamilyIndices {
 	// fill this out as the need for more queue families arises
@@ -534,25 +528,23 @@ void copy_buffer_to_image(VkBuffer buffer, VkImage image, uint32 width, uint32 h
 	end_single_time_commands(command_buffer);
 }
 
-internal_function bool32 create_shader_module(const char *shader_file, VkShaderModule *shader_module)
-{
-	uint32 size;
-	File_Asset *shader_code = platform_read_file(shader_file, &size);
-	if (!shader_code)
-	{
+internal_function bool32 create_shader_module(const char *shader_file, VkShaderModule *shader_module) {
+	File_Asset file_asset = {}; 
+	uint32 size = platform_read_file(shader_file, &file_asset);
+	if (size == 0) {
+		platform_log("Failed to read shader file!\n");
 		return GAME_FAILURE;
 	}
 
-	VkShaderModuleCreateInfo shader_module_info{
+	VkShaderModuleCreateInfo shader_module_info = {
 		.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
 		.codeSize = size,
-		.pCode = reinterpret_cast<const uint32_t *>(shader_code),
+		.pCode = reinterpret_cast<const uint32_t *>(file_asset.data),
 	};
 
 	VkResult result = vkCreateShaderModule(c.device, &shader_module_info, 0, shader_module);
-	platform_free_file(shader_code);
-	if (VK_SUCCESS != result)
-	{
+	platform_free_file(&file_asset);
+	if (VK_SUCCESS != result) {
 		return GAME_FAILURE;
 	}
 
@@ -1277,6 +1269,27 @@ bool32 renderer_vulkan_init() {
 		if (!result) {
 			platform_log("Failed to create texture image!\n");
 		}
+
+		// Font 
+		unsigned char temp_bitmap[512 * 512]; // @Cleanup
+		stbtt_bakedchar cdata[96];            // @Cleanup
+
+		const char *font = "res/fonts/SourceCodePro-Regular.ttf";
+
+		File_Asset font_asset = {};
+		uint32 bytes_read = platform_read_file(font, &font_asset);
+		if (bytes_read == 0) {
+			platform_log("Failed to read the font file!\n");
+			return GAME_FAILURE;
+		}
+		int chars_fit = stbtt_BakeFontBitmap(reinterpret_cast<const unsigned char*>(font_asset.data), 0, 32.0f, temp_bitmap, 512, 512, 32, 96, cdata);
+		platform_free_file(&font_asset);
+		if (chars_fit <= 0) {
+			platform_log("No or not all characters fit into the bitmap.\n");
+			return GAME_FAILURE;
+		}
+
+		// @ToDo create a vulkan texture out of this
 	}
 
 	//

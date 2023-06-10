@@ -4,6 +4,8 @@
 #include "platform.hpp"
 #include "math.hpp"
 
+#define STB_TRUETYPE_IMPLEMENTATION
+#include <lib/stb_truetype.h>
 #include <vulkan/vulkan.h>
 
 #include <assert.h>
@@ -108,7 +110,9 @@ char *get_format_as_string(const char *format, ...) {
 }
 
 void draw_text(Vec2 top_left, uint font_height, const char *text) {
-	// @ToDo
+	// @ToDo add a way in which we get to the cdata created in vulkan_init.cpp
+	//stbtt_aligned_quad q;
+	//stbtt_GetBakedQuad(cdata, 512, 512, *text - 32, &x, &y, &q, 1);
 }
 
 void draw_performance_metrics(VkCommandBuffer command_buffer) {
@@ -191,7 +195,7 @@ void game_render(Game_State *game_state)
 		}
 
 		default: {
-			platform_log("Different Game Modes not yet supported!");
+			platform_log("This mode is not recognized as a mode the game could be in!");
 			break;
 		}
 	}

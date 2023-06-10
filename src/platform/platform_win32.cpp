@@ -471,50 +471,65 @@ internal_function void platform_process_events(Game_State *game_state, float del
 	}
 }
 
-File_Asset *platform_read_file(const char *file_path, uint32 *bytes_read)
-{
+uint32 platform_get_file_size(const char *file_path) {
+	HANDLE file_handle = CreateFileA(file_path, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (file_handle == INVALID_HANDLE_VALUE) return 0;
+
+	LARGE_INTEGER large_integer = {};
+	if (!GetFileSizeEx(file_handle, &large_integer)) {
+		CloseHandle(file_handle);
+		return 0;
+	}
+	if (large_integer.u.HighPart > 0) {
+		CloseHandle(file_handle);
+		return 0;
+	}
+
+	return large_integer.u.LowPart;
+}
+
+uint32 platform_read_file(const char *file_path, File_Asset *file_asset) {
 	// open file
 	HANDLE file_handle = CreateFileA(file_path, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-	if (file_handle == INVALID_HANDLE_VALUE) return NULL;
+	if (file_handle == INVALID_HANDLE_VALUE) return 0;
 
 	// get file size
 	LARGE_INTEGER large_integer = {};
 	if (!GetFileSizeEx(file_handle, &large_integer)) {
 		CloseHandle(file_handle);
-		return NULL;
+		return 0;
 	}
 	if (large_integer.u.HighPart > 0) { 
 		CloseHandle(file_handle);
-		return NULL; 
+		return 0; 
 	}
 	uint32 file_size = large_integer.u.LowPart;
 
 	// allocate buffer
-	File_Asset *file = new File_Asset[file_size];
+	file_asset->data = new char[file_size];
+	file_asset->size = file_size;
 
 	// read file to buffer
 	uint32 number_of_bytes_read;
-	if (!ReadFile(file_handle, file, file_size, (DWORD*)&number_of_bytes_read, NULL)) {
-		delete[] file;
+	if (!ReadFile(file_handle, file_asset->data, file_size, (DWORD*)&number_of_bytes_read, NULL)) {
+		delete[] file_asset->data;
 		CloseHandle(file_handle);
-		return NULL;
+		return 0;
 	}
-
-	if (bytes_read != NULL) *bytes_read = number_of_bytes_read;
 
 	// close file
 	CloseHandle(file_handle);
 
-	return file;
+	return number_of_bytes_read;
 }
 
-void platform_free_file(File_Asset *file)
-{
-	delete[] file;
+void platform_free_file(File_Asset *file_asset) {
+	delete[] file_asset->data;
+	file_asset->data = NULL;
+	file_asset->size = 0;
 }
 
-int CALLBACK WinMain(_In_ HINSTANCE h_instance, _In_opt_ HINSTANCE h_prev_instance, _In_ PSTR cmd_line, _In_ int cmdshow)
-{
+int CALLBACK WinMain(_In_ HINSTANCE h_instance, _In_opt_ HINSTANCE h_prev_instance, _In_ PSTR cmd_line, _In_ int cmdshow) {
 #ifdef _DEBUG
 	platform_logging_init();
 #endif
