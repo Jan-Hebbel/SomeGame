@@ -293,19 +293,17 @@ void create_image_views()
 	}
 }
 
-void create_framebuffers()
-{
+void create_framebuffers() {
 	c.swapchain_framebuffers.resize(c.swapchain_image_views.size());
 
-	for (size_t i = 0; i < c.swapchain_image_views.size(); ++i)
-	{
+	for (size_t i = 0; i < c.swapchain_image_views.size(); ++i) {
 		VkImageView attachments[] = {
 			c.swapchain_image_views[i],
 		};
 
-		VkFramebufferCreateInfo framebuffer_info{
+		VkFramebufferCreateInfo framebuffer_info = {
 			.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-			.renderPass = c.render_pass,
+			.renderPass = c.main_pass,
 			.attachmentCount = 1,
 			.pAttachments = attachments,
 			.width = c.swapchain_image_extent.width,
@@ -314,8 +312,7 @@ void create_framebuffers()
 		};
 
 		VkResult result = vkCreateFramebuffer(c.device, &framebuffer_info, 0, &c.swapchain_framebuffers[i]);
-		if (VK_SUCCESS != result)
-		{
+		if (VK_SUCCESS != result) {
 			platform_log("Fatal: Failed to create framebuffer!\n");
 			assert(VK_SUCCESS == result);
 		}
@@ -483,7 +480,7 @@ void transition_image_layout(VkImage image, VkFormat format, VkImageLayout old_l
 {
 	VkCommandBuffer command_buffer = begin_single_time_commands();
 
-	VkImageMemoryBarrier barrier{
+	VkImageMemoryBarrier barrier = {
 		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
 		.oldLayout = old_layout,
 		.newLayout = new_layout,
@@ -495,16 +492,14 @@ void transition_image_layout(VkImage image, VkFormat format, VkImageLayout old_l
 
 	VkPipelineStageFlags source_stage;
 	VkPipelineStageFlags destination_stage;
-	if (old_layout == VK_IMAGE_LAYOUT_UNDEFINED && new_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
-	{
+	if (old_layout == VK_IMAGE_LAYOUT_UNDEFINED && new_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
 		barrier.srcAccessMask = 0;
 		barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 
 		source_stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
 		destination_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
 	}
-	else if (old_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && new_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
-	{
+	else if (old_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && new_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
 		barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 
@@ -993,7 +988,7 @@ bool32 renderer_vulkan_init() {
 	// create render pass
 	//
 	{
-		VkAttachmentDescription color_attachment_description{
+		VkAttachmentDescription color_attachment_description = {
 			.format = c.swapchain_image_format,
 			.samples = VK_SAMPLE_COUNT_1_BIT,
 			.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
@@ -1004,18 +999,18 @@ bool32 renderer_vulkan_init() {
 			.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
 		};
 
-		VkAttachmentReference color_attachment_reference{
+		VkAttachmentReference color_attachment_reference = {
 			.attachment = 0,
 			.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
 		};
 
-		VkSubpassDescription subpass{
+		VkSubpassDescription subpass = {
 			.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
 			.colorAttachmentCount = 1,
 			.pColorAttachments = &color_attachment_reference,
 		};
 
-		VkSubpassDependency dependency{
+		VkSubpassDependency dependency = {
 			.srcSubpass = VK_SUBPASS_EXTERNAL,
 			.dstSubpass = 0,
 			.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
@@ -1024,7 +1019,7 @@ bool32 renderer_vulkan_init() {
 			.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
 		};
 
-		VkRenderPassCreateInfo render_pass_info{
+		VkRenderPassCreateInfo render_pass_info = {
 			.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
 			.attachmentCount = 1,
 			.pAttachments = &color_attachment_description,
@@ -1034,10 +1029,10 @@ bool32 renderer_vulkan_init() {
 			.pDependencies = &dependency,
 		};
 
-		VkResult result = vkCreateRenderPass(c.device, &render_pass_info, 0, &c.render_pass);
+		VkResult result = vkCreateRenderPass(c.device, &render_pass_info, 0, &c.main_pass);
 		if (result != VK_SUCCESS)
 		{
-			platform_log("Fatal: Failed to create render pass!\n");
+			platform_log("Fatal: Failed to create main pass!\n");
 			return GAME_FAILURE;
 		}
 	}
@@ -1224,7 +1219,7 @@ bool32 renderer_vulkan_init() {
 			.pColorBlendState = &color_blending,
 			.pDynamicState = &dynamic_state_info,
 			.layout = c.pipeline_layout,
-			.renderPass = c.render_pass,
+			.renderPass = c.main_pass,
 			.subpass = 0,
 		};
 

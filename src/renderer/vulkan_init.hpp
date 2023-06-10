@@ -47,7 +47,7 @@ struct Global_Vulkan_Context {
 	VkFormat swapchain_image_format;
 	VkExtent2D swapchain_image_extent;
 	std::vector<VkImageView> swapchain_image_views;
-	VkRenderPass render_pass;
+	VkRenderPass main_pass;
 	VkDescriptorSetLayout descriptor_set_layout;
 	VkDescriptorPool descriptor_pool[2];
 	VkDescriptorSet descriptor_sets[2][MAX_FRAMES_IN_FLIGHT];

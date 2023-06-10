@@ -24,7 +24,7 @@ void recreate_swapchain() {
 	create_framebuffers();
 }
 
-VkCommandBuffer begin_render_pass(VkClearValue *clear_values, uint32_t image_index) {
+VkCommandBuffer begin_render_pass(VkRenderPass render_pass, VkClearValue *clear_values, uint32_t image_index) {
 	VkCommandBuffer command_buffer = c.command_buffers[c.current_frame];
 	vkResetCommandBuffer(command_buffer, 0);
 
@@ -42,7 +42,7 @@ VkCommandBuffer begin_render_pass(VkClearValue *clear_values, uint32_t image_ind
 
 	VkRenderPassBeginInfo render_pass_info = {
 		.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-		.renderPass = c.render_pass,
+		.renderPass = render_pass,
 		.framebuffer = c.swapchain_framebuffers[image_index],
 		.renderArea = { {0, 0}, c.swapchain_image_extent },
 		.clearValueCount = 1,
@@ -66,7 +66,7 @@ void end_render_pass(VkCommandBuffer command_buffer) {
 
 void draw_game(Game_State *game_state, uint32_t image_index) {
 	VkClearValue clear_color = { 0.0f, 0.0f, 0.0f, 1.0f };
-	VkCommandBuffer command_buffer = begin_render_pass(&clear_color, image_index);
+	VkCommandBuffer command_buffer = begin_render_pass(c.main_pass, &clear_color, image_index);
 
 	vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, c.graphics_pipeline);
 
@@ -113,9 +113,9 @@ void draw_game(Game_State *game_state, uint32_t image_index) {
 
 void draw_menu(Game_State *game_state, uint32_t image_index) {
 	VkClearValue clear_color{ {{0.05f, 0.3f, 0.3f, 1.0f}} };
-	VkCommandBuffer command_buffer = begin_render_pass(&clear_color, image_index);
+	VkCommandBuffer command_buffer = begin_render_pass(c.main_pass, &clear_color, image_index);
 	
-	// @ToDo: look at draw_game for comparison
+	// @ToDo, look at draw_game for comparison
 
 	end_render_pass(command_buffer);
 }
@@ -134,19 +134,13 @@ char *get_format_as_string(const char *format, ...) {
 }
 
 void draw_text(Vec2 top_left, uint font_height, const char *text) {
-	platform_log(text);
-	platform_log("\n");
+
 }
 
 void draw_performance_metrics(Game_State *game_state, uint32_t image_index) {
-	VkClearValue clear_value = { {{0.0f, 0.0f, 0.0f, 0.0f}} };
-	VkCommandBuffer command_buffer = begin_render_pass(&clear_value, image_index);
-
 	char *text = get_format_as_string("%.2f ms", perf_metrics.ms_per_frame);
 	draw_text({0.01f, 0.01f}, 10 /*pixels*/, text);
 	delete[] text;
-
-	end_render_pass(command_buffer);
 }
 
 void game_render(Game_State *game_state)
@@ -208,7 +202,7 @@ void game_render(Game_State *game_state)
 			break;
 		}
 	}
-	draw_performance_metrics(game_state, image_index);
+	//draw_performance_metrics(game_state, image_index);
 
 	//
 	// Submit the draw command.
