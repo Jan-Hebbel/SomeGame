@@ -113,7 +113,7 @@ void draw_menu(Game_State *game_state, uint32_t image_index) {
 	VkClearValue clear_color{ {{0.05f, 0.3f, 0.3f, 1.0f}} };
 	VkCommandBuffer command_buffer = begin_render_pass(&clear_color, image_index);
 	
-	// @Todo
+	// @ToDo: look at draw_game for comparison
 
 	end_render_pass(command_buffer);
 }

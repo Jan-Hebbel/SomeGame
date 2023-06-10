@@ -4,16 +4,20 @@
 * Once per frame platform_process_events() is called. This function
 * polls Windows for events. If the event was a Keydown or 
 * Syskeydown event we set the local keyboard state for the key to 
-* true. Once the PeekMessage-Loop is done, we call the 
-* input_add_events() function to add events to event_queue for all 
-* keys that got set to true in keyboard_state in that PeekMessage-
-* Loop. 
+* true. It stays that way until the key is released and Windows 
+* sends a new event, that's when the keyboard state for that key is
+* set to false. 
 * 
-* Later in the game_update() function we empty out the queue that
-* holds all events that got added for this frame by calling 
-* event_queue_next(). This way we keep track of the state of all
-* keys that are down for one frame and handle it later in the 
-* game_update() function.
+* Poll the internal keyboard state to get the position of key for 
+* every frame.
+* 
+* The other system in place is the one that just sends events as 
+* Windows does and sends stores them in an Event queue. These can 
+* be polled with event_queue_next().
+* 
+* Use this when it's not important or unwanted to check for a key
+* state every frame. Like for example when pressing Esc to enter 
+* the menu.
 */
 
 #ifndef INPUT_H

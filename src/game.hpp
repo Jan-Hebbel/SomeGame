@@ -13,11 +13,11 @@ enum Game_Mode {
 
 struct Game_State {
 	bool should_close;
-	Game_Mode mode; // @Incomplete: should this be here or should this be a global constant or something else?
+	Game_Mode mode; // @Cleanup: should this be here or should this be a global constant or something else?
 	struct {
 		Vec2 position;
 		real32 speed;
-	} player;
+	} player; // @Cleanup: player in Game_State?!
 };
 
 struct Game_Memory {
