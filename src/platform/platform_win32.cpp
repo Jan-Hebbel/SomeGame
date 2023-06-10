@@ -324,7 +324,9 @@ LRESULT CALLBACK main_window_callback(HWND w_handle, UINT message, WPARAM wparam
 			// stop player from walking when tabbing out while pressing down any of the movement keys
 			// the key doesn't get set to false since Windows doesn't send an event to the window when
 			// it's out of focus
-			reset_keyboard_state(); 
+			if (wparam == FALSE) { // window loses focus
+				reset_keyboard_state(); 
+			}
 		} break;
 
 		case WM_DESTROY:

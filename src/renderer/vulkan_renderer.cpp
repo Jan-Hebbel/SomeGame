@@ -2,6 +2,7 @@
 
 #include "renderer/vulkan_init.hpp"
 #include "platform.hpp"
+#include "math.hpp"
 
 #include <vulkan/vulkan.h>
 
@@ -63,7 +64,7 @@ void end_render_pass(VkCommandBuffer command_buffer) {
 }
 
 void draw_game(Game_State *game_state, uint32_t image_index) {
-	VkClearValue clear_color = { 0.05f, 0.3f, 0.3f, 1.0f };
+	VkClearValue clear_color = { 0.0f, 0.0f, 0.0f, 1.0f };
 	VkCommandBuffer command_buffer = begin_render_pass(&clear_color, image_index);
 
 	vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, c.graphics_pipeline);
@@ -118,8 +119,17 @@ void draw_menu(Game_State *game_state, uint32_t image_index) {
 	end_render_pass(command_buffer);
 }
 
+void draw_text(Vec2 top_left, uint font_height, const char *format, ...) {
+
+}
+
 void draw_performance_metrics(Game_State *game_state, uint32_t image_index) {
-	
+	VkClearValue clear_value = { {{0.0f, 0.0f, 0.0f, 1.0f}} };
+	VkCommandBuffer command_buffer = begin_render_pass(&clear_value, image_index);
+
+	draw_text({0.01f, 0.01f}, 10 /*pixel high*/, "%.2f fps", perf_metrics.fps);
+
+	end_render_pass(command_buffer);
 }
 
 void game_render(Game_State *game_state)
