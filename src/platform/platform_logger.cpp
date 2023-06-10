@@ -18,9 +18,11 @@ void platform_log(const char *message, ...)
 {
 	va_list arg_ptr;
 	va_start(arg_ptr, message);
+
 	uint size = 1 + vsnprintf(0, 0, message, arg_ptr);
 	char *out_message = new char[size];
 	vsnprintf(out_message, static_cast<size_t>(size), message, arg_ptr);
+
 	va_end(arg_ptr);
 
 	if (output_handle == 0) return;
