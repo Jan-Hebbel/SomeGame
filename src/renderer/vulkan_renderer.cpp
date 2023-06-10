@@ -64,26 +64,7 @@ void end_render_pass(VkCommandBuffer command_buffer) {
 	}
 }
 
-void draw_game(Game_State *game_state, uint32_t image_index) {
-	VkClearValue clear_color = { 0.0f, 0.0f, 0.0f, 1.0f };
-	VkCommandBuffer command_buffer = begin_render_pass(c.main_pass, &clear_color, image_index);
-
-	vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, c.graphics_pipeline);
-
-	VkViewport viewport{
-		.x = 0.0f, .y = 0.0f,
-		.width = static_cast<float>(c.swapchain_image_extent.width),
-		.height = static_cast<float>(c.swapchain_image_extent.height),
-		.minDepth = 0.0f, .maxDepth = 1.0f
-	};
-	vkCmdSetViewport(command_buffer, 0, 1, &viewport);
-
-	VkRect2D scissor{
-		.offset = { 0, 0 },
-		.extent = c.swapchain_image_extent,
-	};
-	vkCmdSetScissor(command_buffer, 0, 1, &scissor);
-
+void draw_game(VkCommandBuffer command_buffer, Game_State *game_state) {
 	// Draw background
 	VkBuffer vertex_buffers2[] = { c.vertex_buffer[1].buffer };
 	VkDeviceSize offsets2[] = { 0 };
@@ -107,17 +88,10 @@ void draw_game(Game_State *game_state, uint32_t image_index) {
 	vkCmdPushConstants(command_buffer, c.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(Push_Constants), &constants);
 
 	vkCmdDrawIndexed(command_buffer, 6, 1, 0, 0, 0); // @Hardcode: 6 == count of indices
-
-	end_render_pass(command_buffer);
 }
 
-void draw_menu(Game_State *game_state, uint32_t image_index) {
-	VkClearValue clear_color{ {{0.05f, 0.3f, 0.3f, 1.0f}} };
-	VkCommandBuffer command_buffer = begin_render_pass(c.main_pass, &clear_color, image_index);
-	
-	// @ToDo, look at draw_game for comparison
-
-	end_render_pass(command_buffer);
+void draw_menu(VkCommandBuffer command_buffer) {
+	// @ToDo
 }
 
 char *get_format_as_string(const char *format, ...) {
@@ -134,10 +108,10 @@ char *get_format_as_string(const char *format, ...) {
 }
 
 void draw_text(Vec2 top_left, uint font_height, const char *text) {
-
+	// @ToDo
 }
 
-void draw_performance_metrics(Game_State *game_state, uint32_t image_index) {
+void draw_performance_metrics(VkCommandBuffer command_buffer) {
 	char *text = get_format_as_string("%.2f ms", perf_metrics.ms_per_frame);
 	draw_text({0.01f, 0.01f}, 10 /*pixels*/, text);
 	delete[] text;
@@ -186,14 +160,33 @@ void game_render(Game_State *game_state)
 	// 
 	// Draw. (Record command buffer that draws image.)
 	//
+	VkClearValue clear_color{ {{0.05f, 0.3f, 0.3f, 1.0f}} };
+	VkCommandBuffer command_buffer = begin_render_pass(c.main_pass, &clear_color, image_index);
+
+	vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, c.graphics_pipeline);
+
+	VkViewport viewport{
+		.x = 0.0f, .y = 0.0f,
+		.width = static_cast<float>(c.swapchain_image_extent.width),
+		.height = static_cast<float>(c.swapchain_image_extent.height),
+		.minDepth = 0.0f, .maxDepth = 1.0f
+	};
+	vkCmdSetViewport(command_buffer, 0, 1, &viewport);
+
+	VkRect2D scissor{
+		.offset = { 0, 0 },
+		.extent = c.swapchain_image_extent,
+	};
+	vkCmdSetScissor(command_buffer, 0, 1, &scissor);
+
 	switch (game_state->mode) {
 		case MODE_PLAY: {
-			draw_game(game_state, image_index);
+			draw_game(command_buffer, game_state);
 			break;
 		}
 
 		case MODE_MENU: {
-			draw_menu(game_state, image_index);
+			draw_menu(command_buffer);
 			break;
 		}
 
@@ -202,7 +195,9 @@ void game_render(Game_State *game_state)
 			break;
 		}
 	}
-	//draw_performance_metrics(game_state, image_index);
+	draw_performance_metrics(command_buffer);
+
+	end_render_pass(command_buffer);
 
 	//
 	// Submit the draw command.
@@ -210,7 +205,7 @@ void game_render(Game_State *game_state)
 	VkSemaphore wait_semaphores[] = { c.image_available_semaphores[c.current_frame] };
 	VkSemaphore signal_semaphores[] = { c.render_finished_semaphores[c.current_frame] };
 	VkPipelineStageFlags wait_stages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-	VkSubmitInfo submit_info{
+	VkSubmitInfo submit_info = {
 		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
 		.waitSemaphoreCount = 1,
 		.pWaitSemaphores = wait_semaphores,
