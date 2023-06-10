@@ -118,6 +118,10 @@ void draw_menu(Game_State *game_state, uint32_t image_index) {
 	end_render_pass(command_buffer);
 }
 
+void draw_performance_metrics(Game_State *game_state, uint32_t image_index) {
+	
+}
+
 void game_render(Game_State *game_state)
 {
 	//

@@ -57,6 +57,7 @@ struct Event_Reader { // typedef better? @Cleanup
 void process_key_event(Key_Code key_code, Key_State key_state, Event_Reader *event_reader);
 Event event_queue_next(Event_Reader *event_reader);
 Key_State get_key_state(Key_Code key_code);
+void reset_keyboard_state();
 
 #endif
 

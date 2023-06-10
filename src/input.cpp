@@ -29,3 +29,9 @@ Event event_queue_next(Event_Reader *event_reader) {
 Key_State get_key_state(Key_Code key_code) {
 	return keyboard_state[key_code];
 }
+
+void reset_keyboard_state() {
+	for (int i = 0; i < KEY_CODE_AMOUNT; ++i) {
+		keyboard_state[i] = {};
+	}
+}
