@@ -28,20 +28,17 @@
 #include <windows.h>
 #include <xaudio2.h>
 
-struct Win32WindowHandles
-{
+struct Win32WindowHandles {
 	HINSTANCE hinstance;
 	HWND hwnd;
 };
 
-struct Win32_Audio_Device
-{
+struct Win32_Audio_Device {
 	IXAudio2 *xaudio2;
 	BYTE *data_buffer;
 };
 
-class Voice_Callback : public IXAudio2VoiceCallback
-{
+class Voice_Callback : public IXAudio2VoiceCallback {
 public:
 	HANDLE hBufferEndEvent;
 	Voice_Callback() : hBufferEndEvent(CreateEvent(NULL, FALSE, FALSE, NULL)) {}
@@ -87,11 +84,9 @@ global_variable Window_Dimensions window_dimensions = { WIDTH, HEIGHT };
 #define fourccDPDS 'sdpd'
 #endif
 
-internal_function HRESULT find_chunk(HANDLE hfile, DWORD fourcc, DWORD &dw_chunk_size, DWORD &dw_chunk_data_position)
-{
+internal_function HRESULT find_chunk(HANDLE hfile, DWORD fourcc, DWORD &dw_chunk_size, DWORD &dw_chunk_data_position) {
 	HRESULT hr = S_OK;
-	if (INVALID_SET_FILE_POINTER == SetFilePointer(hfile, 0, NULL, FILE_BEGIN))
-	{
+	if (INVALID_SET_FILE_POINTER == SetFilePointer(hfile, 0, NULL, FILE_BEGIN)) {
 		platform_log("Warning: Invalid set file pointer in find_chunk!\n");
 		return HRESULT_FROM_WIN32(GetLastError());
 	}
@@ -103,23 +98,18 @@ internal_function HRESULT find_chunk(HANDLE hfile, DWORD fourcc, DWORD &dw_chunk
 	DWORD bytes_read = 0;
 	DWORD dw_offset = 0;
 
-	while (hr == S_OK)
-	{
+	while (hr == S_OK) {
 		DWORD dw_read;
-		if (ReadFile(hfile, &dw_chunk_type, sizeof(DWORD), &dw_read, NULL) == 0)
-		{
+		if (ReadFile(hfile, &dw_chunk_type, sizeof(DWORD), &dw_read, NULL) == 0) {
 			hr = HRESULT_FROM_WIN32(GetLastError());
 		}
 
-		if (ReadFile(hfile, &dw_chunk_data_size, sizeof(DWORD), &dw_read, NULL) == 0)
-		{
+		if (ReadFile(hfile, &dw_chunk_data_size, sizeof(DWORD), &dw_read, NULL) == 0) {
 			hr = HRESULT_FROM_WIN32(GetLastError());
 		}
 
-		switch (dw_chunk_type)
-		{
-			case fourccRIFF:
-			{
+		switch (dw_chunk_type) {
+			case fourccRIFF: {
 				dw_riff_data_size = dw_chunk_data_size;
 				dw_chunk_data_size = 4;
 				if (ReadFile(hfile, &dw_file_type, sizeof(DWORD), &dw_read, NULL) == 0)
@@ -128,8 +118,7 @@ internal_function HRESULT find_chunk(HANDLE hfile, DWORD fourcc, DWORD &dw_chunk
 				}
 			} break;
 
-			default:
-			{
+			default: {
 				if (INVALID_SET_FILE_POINTER == SetFilePointer(hfile, dw_chunk_data_size, NULL, FILE_CURRENT))
 				{
 					return HRESULT_FROM_WIN32(GetLastError());
@@ -139,8 +128,7 @@ internal_function HRESULT find_chunk(HANDLE hfile, DWORD fourcc, DWORD &dw_chunk
 
 		dw_offset += sizeof(DWORD) * 2;
 
-		if (dw_chunk_type == fourcc)
-		{
+		if (dw_chunk_type == fourcc) {
 			dw_chunk_size = dw_chunk_data_size;
 			dw_chunk_data_position = dw_offset;
 			return S_OK;
@@ -154,50 +142,42 @@ internal_function HRESULT find_chunk(HANDLE hfile, DWORD fourcc, DWORD &dw_chunk
 	return S_OK;
 }
 
-internal_function HRESULT read_chunk_data(HANDLE hfile, void *buffer, DWORD buffer_size, DWORD buffer_offset)
-{
+internal_function HRESULT read_chunk_data(HANDLE hfile, void *buffer, DWORD buffer_size, DWORD buffer_offset) {
 	HRESULT hr = S_OK;
-	if (INVALID_SET_FILE_POINTER == SetFilePointer(hfile, buffer_offset, NULL, FILE_BEGIN))
-	{
+	if (INVALID_SET_FILE_POINTER == SetFilePointer(hfile, buffer_offset, NULL, FILE_BEGIN)) {
 		return HRESULT_FROM_WIN32(GetLastError());
 	}
 	DWORD dw_read;
-	if (ReadFile(hfile, buffer, buffer_size, &dw_read, NULL) == 0)
-	{
+	if (ReadFile(hfile, buffer, buffer_size, &dw_read, NULL) == 0) {
 		hr = HRESULT_FROM_WIN32(GetLastError());
 	}
 	return hr;
 }
 
-internal_function bool32 platform_create_audio_device()
-{
+internal_function bool32 platform_create_audio_device() {
 	// initialize the COM library, sets the threads concurrency model
 	HRESULT hresult = CoInitializeEx(NULL, COINIT_MULTITHREADED);
-	if (FAILED(hresult))
-	{
+	if (FAILED(hresult)) {
 		return GAME_FAILURE;
 	}
 
 	// create an instance of the XAudio2 engine
 	hresult = XAudio2Create(&audio_device.xaudio2, 0, XAUDIO2_DEFAULT_PROCESSOR);
-	if (FAILED(hresult))
-	{
+	if (FAILED(hresult)) {
 		return GAME_FAILURE;
 	}
 
 	// create mastering voice (sends audio data to hardware)
 	IXAudio2MasteringVoice *p_mastering_voice = NULL;
 	hresult = audio_device.xaudio2->CreateMasteringVoice(&p_mastering_voice);
-	if (FAILED(hresult))
-	{
+	if (FAILED(hresult)) {
 		return GAME_FAILURE;
 	}
 
 	return GAME_SUCCESS;
 }
 
-void platform_audio_play_file(const char *file_path)
-{
+void platform_audio_play_file(const char *file_path) {
 	// populating XAudio2 structures with the contents of RIFF chunks
 	WAVEFORMATEXTENSIBLE wfx{};
 	XAUDIO2_BUFFER buffer{};
@@ -213,14 +193,12 @@ void platform_audio_play_file(const char *file_path)
 		NULL
 	);
 
-	if (hfile == INVALID_HANDLE_VALUE)
-	{
+	if (hfile == INVALID_HANDLE_VALUE) {
 		//TODO: Logging
 		return;
 	}
 
-	if (SetFilePointer(hfile, 0, NULL, FILE_BEGIN) == INVALID_SET_FILE_POINTER)
-	{
+	if (SetFilePointer(hfile, 0, NULL, FILE_BEGIN) == INVALID_SET_FILE_POINTER) {
 		//TODO: Logging
 		return;
 	}
@@ -232,8 +210,7 @@ void platform_audio_play_file(const char *file_path)
 	find_chunk(hfile, fourccRIFF, dw_chunk_size, dw_chunk_position);
 	DWORD file_type;
 	read_chunk_data(hfile, &file_type, sizeof(DWORD), dw_chunk_position);
-	if (file_type != fourccWAVE)
-	{
+	if (file_type != fourccWAVE) {
 		//TODO: Logging
 		return;
 	}
@@ -259,51 +236,42 @@ void platform_audio_play_file(const char *file_path)
 
 	static Voice_Callback voice_callback;
 	HRESULT hresult = audio_device.xaudio2->CreateSourceVoice(&p_source_voice, (WAVEFORMATEX *)&wfx, 0, XAUDIO2_DEFAULT_FREQ_RATIO, &voice_callback, NULL, NULL);
-	if (FAILED(hresult))
-	{
+	if (FAILED(hresult)) {
 		//TODO: Logging
 		return;
 	}
 
 	hresult = p_source_voice->SubmitSourceBuffer(&buffer);
-	if (FAILED(hresult))
-	{
+	if (FAILED(hresult)) {
 		//TODO: Logging
 		return;
 	}
 
 	hresult = p_source_voice->Start(0);
-	if (FAILED(hresult))
-	{
+	if (FAILED(hresult)) {
 		//TODO: Logging
 		return;
 	}
 }
 
-void *platform_get_window_handles()
-{
+void *platform_get_window_handles() {
 	return (void *)&window_handles;
 }
 
-void platform_get_window_dimensions(Window_Dimensions *dimensions)
-{
+void platform_get_window_dimensions(Window_Dimensions *dimensions) {
 	dimensions->width = window_dimensions.width;
 	dimensions->height = window_dimensions.height;
 }
 
-void platform_error_message_window(const char *title, const char *message)
-{
+void platform_error_message_window(const char *title, const char *message) {
 	MessageBoxA(window_handles.hwnd, message, title, MB_OK | MB_ICONERROR);
 }
 
-LRESULT CALLBACK main_window_callback(HWND w_handle, UINT message, WPARAM wparam, LPARAM lparam)
-{
+LRESULT CALLBACK main_window_callback(HWND w_handle, UINT message, WPARAM wparam, LPARAM lparam) {
 	LRESULT result = 0;
 
-	switch (message)
-	{
-		case WM_SIZE:
-		{
+	switch (message) {
+		case WM_SIZE: {
 			window_dimensions = { LOWORD(lparam), HIWORD(lparam) };
 			//static int i = 0;
 			//if (i > 0)
@@ -313,14 +281,12 @@ LRESULT CALLBACK main_window_callback(HWND w_handle, UINT message, WPARAM wparam
 			//++i;
 		} break;
 
-		case WM_CLOSE:
-		{
+		case WM_CLOSE: {
 			// Todo: handle this as a message to the user?
 			should_close = true;
 		} break;
 
-		case WM_ACTIVATEAPP:
-		{
+		case WM_ACTIVATEAPP: {
 			// stop player from walking when tabbing out while pressing down any of the movement keys
 			// the key doesn't get set to false since Windows doesn't send an event to the window when
 			// it's out of focus
@@ -329,8 +295,7 @@ LRESULT CALLBACK main_window_callback(HWND w_handle, UINT message, WPARAM wparam
 			}
 		} break;
 
-		case WM_DESTROY:
-		{
+		case WM_DESTROY: {
 			// Todo: handle this as an error - recreate window?
 			should_close = true;
 		} break;
@@ -338,13 +303,11 @@ LRESULT CALLBACK main_window_callback(HWND w_handle, UINT message, WPARAM wparam
 		case WM_KEYDOWN:
 		case WM_SYSKEYDOWN:
 		case WM_KEYUP:
-		case WM_SYSKEYUP:
-		{
+		case WM_SYSKEYUP: {
 			platform_log("Keyboard Input came in through a dispatch message!\n");
 		} break;
 
-		default:
-		{
+		default: {
 			result = DefWindowProc(w_handle, message, wparam, lparam);
 		} break;
 	}
@@ -352,9 +315,8 @@ LRESULT CALLBACK main_window_callback(HWND w_handle, UINT message, WPARAM wparam
 	return(result);
 }
 
-internal_function bool32 platform_create_window(const char *title, int width, int height)
-{	
-	WNDCLASSA w_class{};
+internal_function bool32 platform_create_window(const char *title, int width, int height) {	
+	WNDCLASSA w_class = {};
 	w_class.style = CS_HREDRAW | CS_VREDRAW;
 	w_class.lpfnWndProc = main_window_callback;
 	w_class.hInstance = window_handles.hinstance;
@@ -362,8 +324,7 @@ internal_function bool32 platform_create_window(const char *title, int width, in
 	//windowClass.hIcon = ;
 	w_class.lpszClassName = "EngineWindowClass";
 
-	if (!RegisterClassA(&w_class))
-	{
+	if (!RegisterClassA(&w_class)) {
 		return GAME_FAILURE;
 	}
 
@@ -381,8 +342,7 @@ internal_function bool32 platform_create_window(const char *title, int width, in
 		w_class.hInstance,
 		0);
 
-	if (!w_handle)
-	{
+	if (!w_handle) {
 		return GAME_FAILURE;
 	}
 
@@ -391,27 +351,22 @@ internal_function bool32 platform_create_window(const char *title, int width, in
 	return GAME_SUCCESS;
 }
 
-internal_function void platform_process_events(Game_State *game_state, float delta_time)
-{
+internal_function void platform_process_events(Game_State *game_state, float delta_time) {
 	Event_Reader event_reader = {};
 
 	MSG message;
-	while (PeekMessage(&message, 0, 0, 0, PM_REMOVE)) 
-	{
-		switch (message.message)
-		{
+	while (PeekMessage(&message, 0, 0, 0, PM_REMOVE)) {
+		switch (message.message) {
 			//Event new_event;
 
-			case WM_QUIT:
-			{
+			case WM_QUIT: {
 				should_close = true;
 			} break;
 
 			case WM_KEYDOWN:
 			case WM_SYSKEYDOWN:
 			case WM_KEYUP:
-			case WM_SYSKEYUP:
-			{
+			case WM_SYSKEYUP: {
 				WORD vk_code = LOWORD(message.wParam);
 				WORD key_flags = HIWORD(message.lParam);
 
@@ -462,8 +417,7 @@ internal_function void platform_process_events(Game_State *game_state, float del
 				}
 			} break;
 
-			default:
-			{
+			default: {
 				TranslateMessage(&message);
 				DispatchMessage(&message);
 			} break;
@@ -548,20 +502,17 @@ int CALLBACK WinMain(_In_ HINSTANCE h_instance, _In_opt_ HINSTANCE h_prev_instan
 	window_handles.hinstance = h_instance;
 
 	bool32 result = platform_create_window("SomeGame", window_dimensions.width, window_dimensions.height);
-	if (result != GAME_SUCCESS)
-	{
+	if (result != GAME_SUCCESS) {
 		return result;
 	}
 
 	result = platform_create_audio_device();
-	if (result != GAME_SUCCESS)
-	{
+	if (result != GAME_SUCCESS) {
 		return result;
 	}
 
 	result = renderer_vulkan_init();
-	if (result != GAME_SUCCESS)
-	{
+	if (result != GAME_SUCCESS) {
 		platform_log("Fatal: Failed to initialize vulkan!\n");
 		__debugbreak();
 		return GAME_FAILURE;
@@ -575,8 +526,7 @@ int CALLBACK WinMain(_In_ HINSTANCE h_instance, _In_opt_ HINSTANCE h_prev_instan
 	QueryPerformanceCounter(&last_counter);
 	uint64 last_cycle_count = __rdtsc();
 
-	while (!should_close && !game_state.should_close)
-	{
+	while (!should_close && !game_state.should_close) {
 		float delta_time = (float)(perf_metrics.ms_per_frame / 1000.0);
 
 		//
