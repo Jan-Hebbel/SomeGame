@@ -42,8 +42,7 @@ void update_menu(Game_State *game_state, real64 delta_time) {
 	}
 }
 
-void game_update(Game_State *game_state, real64 delta_time)
-{
+void game_update(Game_State *game_state, real64 delta_time) {
 	switch (game_state->mode) {
 		case MODE_PLAY: {
 			update_play(game_state, delta_time);
