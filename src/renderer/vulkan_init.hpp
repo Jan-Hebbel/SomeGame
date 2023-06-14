@@ -9,6 +9,8 @@
 #include <vector>
 
 constexpr uint MAX_FRAMES_IN_FLIGHT = 2;
+constexpr uint MAX_TEXTURE_BINDINGS = 16;
+constexpr uint NUMBER_OF_ASSETS = 3;
 
 enum Buffer_Type {
 	VERTEX_BUFFER = 0,
@@ -49,8 +51,8 @@ struct Global_Vulkan_Context {
 	std::vector<VkImageView> swapchain_image_views;
 	VkRenderPass main_pass;
 	VkDescriptorSetLayout descriptor_set_layout;
-	VkDescriptorPool descriptor_pool[2];
-	VkDescriptorSet descriptor_sets[2][MAX_FRAMES_IN_FLIGHT];
+	VkDescriptorPool descriptor_pool;
+	VkDescriptorSet descriptor_sets[MAX_FRAMES_IN_FLIGHT];
 	VkPipelineLayout pipeline_layout;
 	VkPipeline graphics_pipeline;
 	std::vector<VkFramebuffer> swapchain_framebuffers;
@@ -60,10 +62,10 @@ struct Global_Vulkan_Context {
 	VkSemaphore render_finished_semaphores[MAX_FRAMES_IN_FLIGHT];
 	VkFence in_flight_fences[MAX_FRAMES_IN_FLIGHT];
 	uint32 current_frame = 0;
-	Render_Buffer vertex_buffer[2];
-	Render_Buffer index_buffer[2];
+	Render_Buffer vertex_buffer[NUMBER_OF_ASSETS];
+	Render_Buffer index_buffer[NUMBER_OF_ASSETS];
 	Uniform_Buffer uniform_buffer;
-	Texture texture[2];
+	Texture texture[NUMBER_OF_ASSETS];
 };
 
 struct Vertex {
@@ -74,10 +76,6 @@ struct Vertex {
 struct Uniform_Buffer_Object {
 	Mat4 view;
 	Mat4 proj;
-};
-
-struct Push_Constants {
-	Mat4 model;
 };
 
 extern Global_Vulkan_Context c;

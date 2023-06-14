@@ -70,12 +70,14 @@ void draw_game(VkCommandBuffer command_buffer, Game_State *game_state) {
 	// Draw background
 	VkBuffer vertex_buffers2[] = { c.vertex_buffer[1].buffer };
 	VkDeviceSize offsets2[] = { 0 };
+
 	vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers2, offsets2);
 	vkCmdBindIndexBuffer(command_buffer, c.index_buffer[1].buffer, 0, VK_INDEX_TYPE_UINT16);
-	vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, c.pipeline_layout, 0, 1, &c.descriptor_sets[1][c.current_frame], 0, 0);
-	Push_Constants constants = {};
-	constants.model = identity();
-	vkCmdPushConstants(command_buffer, c.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(Push_Constants), &constants);
+	vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, c.pipeline_layout, 0, 1, &c.descriptor_sets[c.current_frame], 0, 0);
+	Mat4 model = identity();
+	vkCmdPushConstants(command_buffer, c.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, 64, &model);
+	int texture_index = 1;
+	vkCmdPushConstants(command_buffer, c.pipeline_layout, VK_SHADER_STAGE_FRAGMENT_BIT, 64, sizeof(int), &texture_index); 
 
 	vkCmdDrawIndexed(command_buffer, 6, 1, 0, 0, 0); // @Hardcode: 6 == count of indices
 
@@ -85,9 +87,11 @@ void draw_game(VkCommandBuffer command_buffer, Game_State *game_state) {
 
 	vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers, offsets);
 	vkCmdBindIndexBuffer(command_buffer, c.index_buffer[0].buffer, 0, VK_INDEX_TYPE_UINT16);
-	vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, c.pipeline_layout, 0, 1, &c.descriptor_sets[0][c.current_frame], 0, 0); // holds uniforms (texture sampler, uniform buffers)
-	constants.model = transpose(translate({ game_state->player.position.x, game_state->player.position.y, 0 }));
-	vkCmdPushConstants(command_buffer, c.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(Push_Constants), &constants);
+	vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, c.pipeline_layout, 0, 1, &c.descriptor_sets[c.current_frame], 0, 0); // holds uniforms (texture sampler, uniform buffers)
+	model = transpose(translate({ game_state->player.position.x, game_state->player.position.y, 0 }));
+	vkCmdPushConstants(command_buffer, c.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, 64, &model);
+	texture_index = 0;
+	vkCmdPushConstants(command_buffer, c.pipeline_layout, VK_SHADER_STAGE_FRAGMENT_BIT, 64, sizeof(int), &texture_index);
 
 	vkCmdDrawIndexed(command_buffer, 6, 1, 0, 0, 0); // @Hardcode: 6 == count of indices
 }
@@ -111,8 +115,16 @@ char *get_format_as_string(const char *format, ...) {
 
 void draw_text(Vec2 top_left, uint font_height, const char *text) {
 	// @ToDo add a way in which we get to the cdata created in vulkan_init.cpp
-	//stbtt_aligned_quad q;
-	//stbtt_GetBakedQuad(cdata, 512, 512, *text - 32, &x, &y, &q, 1);
+	char *c = (char *)text;
+	while (*c) {
+		if (*c >= 32 && *c < 128) {
+			//stbtt_aligned_quad q;
+			//stbtt_GetBakedQuad(cdata, 512, 512, *text - 32, &top_left.x, &top_left.y, &q, 1);
+			//platform_log("%c", *c); 
+		}
+		++c;
+	}
+	//platform_log("\n");
 }
 
 void draw_performance_metrics(VkCommandBuffer command_buffer) {

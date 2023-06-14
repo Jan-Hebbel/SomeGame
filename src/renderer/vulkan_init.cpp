@@ -511,11 +511,10 @@ void transition_image_layout(VkImage image, VkFormat format, VkImageLayout old_l
 	end_single_time_commands(command_buffer);
 }
 
-void copy_buffer_to_image(VkBuffer buffer, VkImage image, uint32 width, uint32 height)
-{
+void copy_buffer_to_image(VkBuffer buffer, VkImage image, uint32 width, uint32 height) {
 	VkCommandBuffer command_buffer = begin_single_time_commands();
 
-	VkBufferImageCopy region{
+	VkBufferImageCopy region = {
 		.bufferOffset = 0,
 		.bufferRowLength = 0,
 		.bufferImageHeight = 0,
@@ -589,7 +588,7 @@ void create_render_buffer(const void *elements, size_t size, Render_Buffer *rend
 	vkFreeMemory(c.device, staging_buffer_memory, 0);
 }
 
-bool create_texture_image(const char *file_path, int *width, int *height, int *nr_channels, Texture *texture) {
+bool create_texture_image(const char *file_path, int *width, int *height, int *nr_channels, Texture *texture, VkFormat format = VK_FORMAT_R8G8B8A8_SRGB) {
 	stbi_uc *pixels = stbi_load(file_path, width, height, nr_channels, STBI_rgb_alpha);
 	if (!pixels) {
 		return false;
@@ -611,13 +610,13 @@ bool create_texture_image(const char *file_path, int *width, int *height, int *n
 	vkUnmapMemory(c.device, staging_buffer_memory);
 	stbi_image_free(pixels);
 
-	create_image(w, h, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, texture->image, texture->memory);
+	create_image(w, h, format, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, texture->image, texture->memory);
 
-	transition_image_layout(texture->image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+	transition_image_layout(texture->image, format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
 	copy_buffer_to_image(staging_buffer, texture->image, static_cast<uint32_t>(w), static_cast<uint32_t>(h));
 
-	transition_image_layout(texture->image, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+	transition_image_layout(texture->image, format, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
 	vkDestroyBuffer(c.device, staging_buffer, 0);
 	vkFreeMemory(c.device, staging_buffer_memory, 0);
@@ -625,12 +624,43 @@ bool create_texture_image(const char *file_path, int *width, int *height, int *n
 	return true;
 }
 
-bool create_texture_image_view(Texture *texture) {
+bool create_texture_image(const char *texture_data, int width, int height, int nrChannels, Texture *texture, VkFormat format = VK_FORMAT_R8G8B8A8_SRGB) {
+	if (!texture_data) {
+		return false;
+	}
+
+	VkDeviceSize image_size = width * height * nrChannels;
+
+	VkBuffer staging_buffer;
+	VkDeviceMemory staging_buffer_memory;
+
+	create_buffer(image_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, staging_buffer, staging_buffer_memory);
+
+	void *data;
+	vkMapMemory(c.device, staging_buffer_memory, 0, image_size, 0, &data);
+	memcpy(data, texture_data, static_cast<size_t>(image_size));
+	vkUnmapMemory(c.device, staging_buffer_memory);
+
+	create_image(width, height, format, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, texture->image, texture->memory);
+
+	transition_image_layout(texture->image, format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+	copy_buffer_to_image(staging_buffer, texture->image, static_cast<uint32_t>(width), static_cast<uint32_t>(height));
+
+	transition_image_layout(texture->image, format, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+	vkDestroyBuffer(c.device, staging_buffer, 0);
+	vkFreeMemory(c.device, staging_buffer_memory, 0);
+
+	return true;
+}
+
+bool create_texture_image_view(Texture *texture, VkFormat format = VK_FORMAT_R8G8B8A8_SRGB) {
 	VkImageViewCreateInfo view_info = {
 		.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
 		.image = texture->image,
 		.viewType = VK_IMAGE_VIEW_TYPE_2D,
-		.format = VK_FORMAT_R8G8B8A8_SRGB,
+		.format = format,
 		.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 },
 	};
 	VkResult result = vkCreateImageView(c.device, &view_info, 0, &texture->image_view);
@@ -1033,31 +1063,30 @@ bool32 renderer_vulkan_init() {
 	// create descriptor set layout
 	//
 	{
-		VkDescriptorSetLayoutBinding ubo_layout_binding{
+		VkDescriptorSetLayoutBinding ubo_layout_binding = {
 			.binding = 0,
 			.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
 			.descriptorCount = 1,
 			.stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
 		};
 
-		VkDescriptorSetLayoutBinding sampler_layout_binding{
+		VkDescriptorSetLayoutBinding sampler_layout_binding = {
 			.binding = 1,
 			.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-			.descriptorCount = 1,
+			.descriptorCount = MAX_TEXTURE_BINDINGS,
 			.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
 		};
 
 		VkDescriptorSetLayoutBinding bindings[] = { ubo_layout_binding, sampler_layout_binding };
 
-		VkDescriptorSetLayoutCreateInfo layout_info{
+		VkDescriptorSetLayoutCreateInfo layout_info = {
 			.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
 			.bindingCount = sizeof(bindings) / sizeof(bindings[0]),
 			.pBindings = bindings,
 		};
 
 		VkResult result = vkCreateDescriptorSetLayout(c.device, &layout_info, 0, &c.descriptor_set_layout);
-		if (VK_SUCCESS != result)
-		{
+		if (VK_SUCCESS != result) {
 			platform_log("Fatal: Failed to create descriptor set layout!\n");
 			return GAME_FAILURE;
 		}
@@ -1091,7 +1120,7 @@ bool32 renderer_vulkan_init() {
 			return GAME_FAILURE;
 		}
 
-		VkPipelineShaderStageCreateInfo frag_shader_stage_info{};
+		VkPipelineShaderStageCreateInfo frag_shader_stage_info = {};
 		frag_shader_stage_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
 		frag_shader_stage_info.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
 		frag_shader_stage_info.module = fragment_shader_module;
@@ -1100,7 +1129,7 @@ bool32 renderer_vulkan_init() {
 		VkPipelineShaderStageCreateInfo shader_stage_create_infos[] = { vert_shader_stage_info, frag_shader_stage_info };
 
 		VkDynamicState dynamic_states[] = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
-		VkPipelineDynamicStateCreateInfo dynamic_state_info{};
+		VkPipelineDynamicStateCreateInfo dynamic_state_info = {};
 		dynamic_state_info.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
 		dynamic_state_info.dynamicStateCount = sizeof(shader_stage_create_infos) / sizeof(shader_stage_create_infos[0]);
 		dynamic_state_info.pDynamicStates = dynamic_states;
@@ -1110,30 +1139,39 @@ bool32 renderer_vulkan_init() {
 			.stride = sizeof(Vertex),
 			.inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
 		};
-		VkVertexInputAttributeDescription attribute_descriptions[2]{};
-		attribute_descriptions[0].binding = 0;
-		attribute_descriptions[0].location = 0;
-		attribute_descriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
-		attribute_descriptions[0].offset = offsetof(Vertex, pos);
-		attribute_descriptions[1].binding = 0;
-		attribute_descriptions[1].location = 1;
-		attribute_descriptions[1].format = VK_FORMAT_R32G32_SFLOAT;
-		attribute_descriptions[1].offset = offsetof(Vertex, tex_coord);
-		VkPipelineVertexInputStateCreateInfo vertex_input_info{};
-		vertex_input_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-		vertex_input_info.vertexBindingDescriptionCount = 1;
-		vertex_input_info.vertexAttributeDescriptionCount = 2;
-		vertex_input_info.pVertexBindingDescriptions = &binding_description;
-		vertex_input_info.pVertexAttributeDescriptions = attribute_descriptions;
 
-		VkPipelineInputAssemblyStateCreateInfo input_assembly_info{};
-		input_assembly_info.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-		input_assembly_info.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-		input_assembly_info.primitiveRestartEnable = VK_FALSE;
+		VkVertexInputAttributeDescription attribute_descriptions[] = {
+			{
+				.location = 0,
+				.binding = 0,
+				.format = VK_FORMAT_R32G32_SFLOAT,
+				.offset = offsetof(Vertex, pos)
+			},
+			{
+				.location = 1,
+				.binding = 0,
+				.format = VK_FORMAT_R32G32_SFLOAT,
+				.offset = offsetof(Vertex, tex_coord)
+			}
+		};
+
+		VkPipelineVertexInputStateCreateInfo vertex_input_info = {
+			.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+			.vertexBindingDescriptionCount = 1,
+			.pVertexBindingDescriptions = &binding_description,
+			.vertexAttributeDescriptionCount = 2,
+			.pVertexAttributeDescriptions = attribute_descriptions
+		};
+
+		VkPipelineInputAssemblyStateCreateInfo input_assembly_info = {
+			.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+			.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+			.primitiveRestartEnable = VK_FALSE
+		};
 
 		// NOTE: we are using dynamic state, so we need to specify viewport and scissor at drawing time, instead of here
 
-		VkPipelineViewportStateCreateInfo viewport_info{
+		VkPipelineViewportStateCreateInfo viewport_info = {
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
 			.viewportCount = 1,
 			//.pViewports = &viewport,
@@ -1141,7 +1179,7 @@ bool32 renderer_vulkan_init() {
 			//.pScissors = &scissors,
 		};
 
-		VkPipelineRasterizationStateCreateInfo rasterization_info{
+		VkPipelineRasterizationStateCreateInfo rasterization_info = {
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
 			.depthClampEnable = VK_FALSE,
 			.rasterizerDiscardEnable = VK_FALSE,
@@ -1152,13 +1190,13 @@ bool32 renderer_vulkan_init() {
 			.lineWidth = 1.0f,
 		};
 
-		VkPipelineMultisampleStateCreateInfo multisampling{
+		VkPipelineMultisampleStateCreateInfo multisampling = {
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
 			.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
 			.sampleShadingEnable = VK_FALSE,
 		};
 
-		VkPipelineColorBlendAttachmentState color_blend_attachment{
+		VkPipelineColorBlendAttachmentState color_blend_attachment = {
 			.blendEnable = VK_TRUE,
 			.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
 			.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
@@ -1169,7 +1207,7 @@ bool32 renderer_vulkan_init() {
 			.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
 		};
 
-		VkPipelineColorBlendStateCreateInfo color_blending{
+		VkPipelineColorBlendStateCreateInfo color_blending = {
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
 			.logicOpEnable = VK_FALSE,
 			.logicOp = VK_LOGIC_OP_COPY,
@@ -1178,18 +1216,25 @@ bool32 renderer_vulkan_init() {
 			.blendConstants = { 0.0f, 0.0f, 0.0f, 0.0f },
 		};
 
-		VkPushConstantRange range = {
-			.stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
-			.offset = 0,
-			.size = 16 * sizeof(float) // 4 by 4 matrix with 4 bytes per float
+		VkPushConstantRange ranges[] = {
+			{
+				.stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+				.offset = 0,
+				.size = 64 // 4 by 4 matrix with 4 bytes per float
+			},
+			{
+				.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+				.offset = 64,
+				.size = sizeof(int)
+			}
 		};
 
-		VkPipelineLayoutCreateInfo pipeline_layout_info{
+		VkPipelineLayoutCreateInfo pipeline_layout_info = {
 			.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
 			.setLayoutCount = 1,
 			.pSetLayouts = &c.descriptor_set_layout,
-			.pushConstantRangeCount = 1,
-			.pPushConstantRanges = &range
+			.pushConstantRangeCount = 2,
+			.pPushConstantRanges = ranges
 		};
 
 		VkResult result = vkCreatePipelineLayout(c.device, &pipeline_layout_info, 0, &c.pipeline_layout);
@@ -1199,7 +1244,7 @@ bool32 renderer_vulkan_init() {
 			return GAME_FAILURE;
 		}
 
-		VkGraphicsPipelineCreateInfo pipeline_info{
+		VkGraphicsPipelineCreateInfo pipeline_info = {
 			.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
 			.stageCount = 2,
 			.pStages = shader_stage_create_infos,
@@ -1261,35 +1306,45 @@ bool32 renderer_vulkan_init() {
 		// Player
 		result = create_texture_image("res/textures/option2.png", &width, &height, &nr_channels, &c.texture[0]);
 		if (!result) {
-			platform_log("Failed to create texture image!\n");
+			platform_log("Fatal: Failed to create texture image!\n");
+			return GAME_FAILURE;
 		}
 
 		// Background
 		result = create_texture_image("res/textures/grass.png", &width, &height, &nr_channels, &c.texture[1]);
 		if (!result) {
-			platform_log("Failed to create texture image!\n");
+			platform_log("Fatal: Failed to create texture image!\n");
+			return GAME_FAILURE;
 		}
 
 		// Font 
-		unsigned char temp_bitmap[512 * 512]; // @Cleanup
-		stbtt_bakedchar cdata[96];            // @Cleanup
+		const int bitmap_w = 512;
+		const int bitmap_h = 512;
+		unsigned char *temp_bitmap = new unsigned char[bitmap_w * bitmap_h];
+		stbtt_bakedchar cdata[96];
 
-		const char *font = "res/fonts/SourceCodePro-Regular.ttf";
+		const char *font = "C:/Dev/MyGame/res/fonts/SourceCodePro-Regular.ttf";
 
 		File_Asset font_asset = {};
 		uint32 bytes_read = platform_read_file(font, &font_asset);
 		if (bytes_read == 0) {
-			platform_log("Failed to read the font file!\n");
+			platform_log("Fatal: Failed to read the font file!\n");
 			return GAME_FAILURE;
 		}
-		int chars_fit = stbtt_BakeFontBitmap(reinterpret_cast<const unsigned char*>(font_asset.data), 0, 32.0f, temp_bitmap, 512, 512, 32, 96, cdata);
+		int chars_fit = stbtt_BakeFontBitmap(reinterpret_cast<const unsigned char*>(font_asset.data), 0, 32.0f, temp_bitmap, bitmap_w, bitmap_h, 32, 96, cdata);
 		platform_free_file(&font_asset);
 		if (chars_fit <= 0) {
-			platform_log("No or not all characters fit into the bitmap.\n");
+			platform_log("Fatal: No or not all characters fit into the bitmap.\n");
 			return GAME_FAILURE;
 		}
 
-		// @ToDo create a vulkan texture out of this
+		result = create_texture_image(reinterpret_cast<char *>(temp_bitmap), bitmap_w, bitmap_h, 1, &c.texture[2], VK_FORMAT_R8_SRGB);
+		if (!result) {
+			platform_log("Fatal: Line %d: Failed to create texture image!\n", __LINE__);
+			return GAME_FAILURE;
+		}
+
+		delete[] temp_bitmap;
 	}
 
 	//
@@ -1309,6 +1364,12 @@ bool32 renderer_vulkan_init() {
 		if (!result) {
 			platform_log("Failed to create a texture image view!\n");
 		}
+
+		// Font
+		result = create_texture_image_view(&c.texture[2], VK_FORMAT_R8_SRGB);
+		if (!result) {
+			platform_log("Failed to create a texture image view!\n");
+		}
 	}
 
 	//
@@ -1316,11 +1377,18 @@ bool32 renderer_vulkan_init() {
 	//
 	{
 		bool result;
+
 		result = create_texture_image_sampler(&c.texture[0]); // Player
 		if (!result) {
 			platform_log("Failed to create a texture image sampler!\n");
 		}
+
 		result = create_texture_image_sampler(&c.texture[1]); // Background
+		if (!result) {
+			platform_log("Failed to create a texture image sampler!\n");
+		}
+
+		result = create_texture_image_sampler(&c.texture[2]);
 		if (!result) {
 			platform_log("Failed to create a texture image sampler!\n");
 		}
@@ -1349,6 +1417,16 @@ bool32 renderer_vulkan_init() {
 		};
 
 		create_render_buffer(bg_vertices, sizeof(bg_vertices), &c.vertex_buffer[1], VERTEX_BUFFER);
+
+		// Font 
+		const Vertex font_verts[] = {
+			{.pos = {-1.0f, -1.0f}, .tex_coord = {0.0f, 0.0f}},
+			{.pos = { 1.0f, -1.0f}, .tex_coord = {1.0f, 0.0f}},
+			{.pos = { 1.0f,  1.0f}, .tex_coord = {1.0f, 1.0f}},
+			{.pos = {-1.0f,  1.0f}, .tex_coord = {0.0f, 1.0f}}
+		};
+
+		create_render_buffer(font_verts, sizeof(font_verts), &c.vertex_buffer[2], VERTEX_BUFFER);
 	}
 
 	//
@@ -1360,6 +1438,9 @@ bool32 renderer_vulkan_init() {
 
 		// Background
 		create_render_buffer(indices, sizeof(indices), &c.index_buffer[1], INDEX_BUFFER);
+
+		// Font 
+		create_render_buffer(indices, sizeof(indices), &c.index_buffer[2], INDEX_BUFFER);
 	}
 
 	//
@@ -1415,14 +1496,7 @@ bool32 renderer_vulkan_init() {
 			.pPoolSizes = pool_sizes,
 		};
 
-		VkResult result = vkCreateDescriptorPool(c.device, &pool_info, 0, &c.descriptor_pool[0]);
-		if (VK_SUCCESS != result)
-		{
-			platform_log("Fatal: Failed to create descriptor pool!\n");
-			return GAME_FAILURE;
-		}
-
-		result = vkCreateDescriptorPool(c.device, &pool_info, 0, &c.descriptor_pool[1]);
+		VkResult result = vkCreateDescriptorPool(c.device, &pool_info, 0, &c.descriptor_pool);
 		if (VK_SUCCESS != result)
 		{
 			platform_log("Fatal: Failed to create descriptor pool!\n");
@@ -1440,32 +1514,36 @@ bool32 renderer_vulkan_init() {
 		}
 		VkDescriptorSetAllocateInfo alloc_info = {
 			.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-			.descriptorPool = c.descriptor_pool[0],
+			.descriptorPool = c.descriptor_pool,
 			.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT),
 			.pSetLayouts = layouts,
 		};
 
-		VkResult result = vkAllocateDescriptorSets(c.device, &alloc_info, c.descriptor_sets[0]);
+		VkResult result = vkAllocateDescriptorSets(c.device, &alloc_info, c.descriptor_sets);
 		if (VK_SUCCESS != result) {
 			platform_log("Fatal: Failed to allocate descriptor sets!\n");
 			return GAME_FAILURE;
 		}
 
+		VkDescriptorImageInfo image_infos[NUMBER_OF_ASSETS];
+		for (int j = 0; j < NUMBER_OF_ASSETS; ++j) {
+			assert(j < MAX_TEXTURE_BINDINGS);
+			image_infos[j].sampler = c.texture[j].sampler;
+			image_infos[j].imageView = c.texture[j].image_view;
+			image_infos[j].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		};
+
 		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
-			VkDescriptorBufferInfo buffer_info{
+			VkDescriptorBufferInfo buffer_info = {
 				.buffer = c.uniform_buffer.buffer,
 				.offset = 0,
 				.range = sizeof(Uniform_Buffer_Object),
 			};
-			VkDescriptorImageInfo image_info{
-				.sampler = c.texture[0].sampler,
-				.imageView = c.texture[0].image_view,
-				.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-			};
+
 			VkWriteDescriptorSet descriptor_writes[] = {
 				{
 					.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-					.dstSet = c.descriptor_sets[0][i],
+					.dstSet = c.descriptor_sets[i],
 					.dstBinding = 0,
 					.dstArrayElement = 0,
 					.descriptorCount = 1,
@@ -1474,59 +1552,12 @@ bool32 renderer_vulkan_init() {
 				},
 				{
 					.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-					.dstSet = c.descriptor_sets[0][i],
+					.dstSet = c.descriptor_sets[i],
 					.dstBinding = 1,
 					.dstArrayElement = 0,
-					.descriptorCount = 1,
+					.descriptorCount = NUMBER_OF_ASSETS,
 					.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-					.pImageInfo = &image_info,
-				}
-			};
-			vkUpdateDescriptorSets(c.device, sizeof(descriptor_writes) / sizeof(descriptor_writes[0]), descriptor_writes, 0, 0);
-		}
-
-		// Background Descriptor Sets
-		VkDescriptorSetAllocateInfo alloc_info2 = {
-			.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-			.descriptorPool = c.descriptor_pool[1],
-			.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT),
-			.pSetLayouts = layouts,
-		};
-		result = vkAllocateDescriptorSets(c.device, &alloc_info2, c.descriptor_sets[1]);
-		if (VK_SUCCESS != result) {
-			platform_log("Fatal: Failed to allocate descriptor sets!\n");
-			return GAME_FAILURE;
-		}
-
-		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
-			VkDescriptorBufferInfo buffer_info{
-				.buffer = c.uniform_buffer.buffer,
-				.offset = 0,
-				.range = sizeof(Uniform_Buffer_Object),
-			};
-			VkDescriptorImageInfo image_info = {
-				.sampler = c.texture[1].sampler,
-				.imageView = c.texture[1].image_view,
-				.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-			};
-			VkWriteDescriptorSet descriptor_writes[] = {
-				{
-					.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-					.dstSet = c.descriptor_sets[1][i],
-					.dstBinding = 0,
-					.dstArrayElement = 0,
-					.descriptorCount = 1,
-					.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-					.pBufferInfo = &buffer_info,
-				},
-				{
-					.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-					.dstSet = c.descriptor_sets[1][i],
-					.dstBinding = 1,
-					.dstArrayElement = 0,
-					.descriptorCount = 1,
-					.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-					.pImageInfo = &image_info,
+					.pImageInfo = image_infos,
 				}
 			};
 			vkUpdateDescriptorSets(c.device, sizeof(descriptor_writes) / sizeof(descriptor_writes[0]), descriptor_writes, 0, 0);
@@ -1537,7 +1568,7 @@ bool32 renderer_vulkan_init() {
 	// create command buffers
 	//
 	{
-		VkCommandBufferAllocateInfo allocate_info{
+		VkCommandBufferAllocateInfo allocate_info = {
 			.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
 			.commandPool = c.command_pool,
 			.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
@@ -1545,8 +1576,7 @@ bool32 renderer_vulkan_init() {
 		};
 
 		VkResult result = vkAllocateCommandBuffers(c.device, &allocate_info, c.command_buffers);
-		if (result != VK_SUCCESS)
-		{
+		if (result != VK_SUCCESS) {
 			platform_log("Fatal: Failed to allocate command buffers!\n");
 			return GAME_FAILURE;
 		}
@@ -1556,11 +1586,11 @@ bool32 renderer_vulkan_init() {
 	// create synchronization objects
 	//
 	{
-		VkSemaphoreCreateInfo semaphore_info{
+		VkSemaphoreCreateInfo semaphore_info = {
 			.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
 		};
 
-		VkFenceCreateInfo fence_info{
+		VkFenceCreateInfo fence_info = {
 			.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
 			.flags = VK_FENCE_CREATE_SIGNALED_BIT,
 		};
