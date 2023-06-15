@@ -524,7 +524,7 @@ typedef struct
 // If you use this API, you only have to call two functions ever.
 //
 
-typedef struct
+typedef struct tag_stbtt_bakedchar
 {
    unsigned short x0,y0,x1,y1; // coordinates of bbox in bitmap
    float xoff,yoff,xadvance;

@@ -75,6 +75,8 @@ global_variable const uint16 indices[] = {
 	0, 1, 2, 2, 3, 0
 };
 
+stbtt_bakedchar cdata[96];
+
 VKAPI_ATTR VkBool32 VKAPI_CALL vulkan_debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT type, const VkDebugUtilsMessengerCallbackDataEXT *p_callback_data, void *p_user_data)
 {
 	platform_log("%s\n", p_callback_data->pMessage);
@@ -1297,7 +1299,7 @@ bool32 renderer_vulkan_init() {
 	}
 
 	//
-	// create texture image
+	// create texture image (and memory)
 	//
 	{
 		int width, height, nr_channels;
@@ -1321,7 +1323,6 @@ bool32 renderer_vulkan_init() {
 		const int bitmap_w = 512;
 		const int bitmap_h = 512;
 		unsigned char *temp_bitmap = new unsigned char[bitmap_w * bitmap_h];
-		stbtt_bakedchar cdata[96];
 
 		const char *font = "C:/Dev/MyGame/res/fonts/SourceCodePro-Regular.ttf";
 

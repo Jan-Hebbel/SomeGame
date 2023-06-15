@@ -79,6 +79,8 @@ struct Uniform_Buffer_Object {
 };
 
 extern Global_Vulkan_Context c;
+typedef struct tag_stbtt_bakedchar stbtt_bakedchar; 
+extern stbtt_bakedchar cdata[96]; // @Cleanup
 
 void cleanup_swapchain();
 void create_swapchain();
