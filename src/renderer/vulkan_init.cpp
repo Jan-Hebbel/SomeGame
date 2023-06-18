@@ -1,13 +1,3 @@
-
-/*
-	TODO:
-	* memory arena
-	* display text to screen
-		* load font with platform_load_file(...)
-	* free everything 
-	* take care of @Performance tags
-*/
-
 #define _CRT_SECURE_NO_WARNINGS
 
 #if defined PLATFORM_WINDOWS
@@ -19,9 +9,9 @@
 		HWND hwnd;
 	};
 #elif defined PLATFORM_LINUX
-	// TODO: support linux
+	// @ToDo: support linux
 #elif defined PLATFORM_MACOS
-	// TODO: support macos
+	// @ToDo: support macos
 #else 
 	#error Unsupported Operating System!
 #endif
@@ -358,7 +348,7 @@ bool32 renderer_vulkan_init() {
 	{
 		VkApplicationInfo app_info{};
 		app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-		app_info.pApplicationName = "Game"; // TODO: real name
+		app_info.pApplicationName = "Game"; // @ToDo: real name
 		app_info.applicationVersion = VK_MAKE_API_VERSION(0, 0, 1, 0);
 		app_info.apiVersion = VK_API_VERSION_1_3;
 
@@ -555,7 +545,7 @@ bool32 renderer_vulkan_init() {
 			bool swapchain_supported = !swapchain_support.surface_formats.empty() && !swapchain_support.present_modes.empty();
 			
 			// search for other devices if the current driver is not a dedicated gpu, doesnt support the required queue families, doesnt support the required device extensions
-			// TODO: (potentially support multiple graphics cards)
+			// @ToDo: (potentially support multiple graphics cards)
 			if (queue_family_indices_is_complete && physical_device_properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU && all_device_extensions_supported && swapchain_supported)
 			{
 				// picking physical device here
@@ -608,7 +598,7 @@ bool32 renderer_vulkan_init() {
 		device_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 		device_info.queueCreateInfoCount = static_cast<uint32_t>(unique_queue_family_indices.size());
 		device_info.pQueueCreateInfos = queue_infos;
-		// TODO: set layer info for older version (since deprecated)?
+		// @ToDo: set layer info for older version (since deprecated)?
 		device_info.enabledExtensionCount = static_cast<uint32_t>(device_extensions_size);
 		device_info.ppEnabledExtensionNames = device_extensions;
 		device_info.pEnabledFeatures = &device_features;

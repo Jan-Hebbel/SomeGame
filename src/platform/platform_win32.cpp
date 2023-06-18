@@ -1,23 +1,3 @@
-/*
-	TODO: NOT FINAL
-
-	- logging
-	- saved game locations
-	- getting a handle to our own executable file
-	- asset loading path
-	- multithreading
-	- raw input (multiple keyboards)
-	- sleep / timebeginperiod
-	- clipcursor() (multimonitor support)
-	- fullscreen support
-	- WM_SETCURSOR
-	- querycancelautoplay
-	- WM_ACTIVATEAPP
-	- getkeyboard layouts
-	- hardware acceleration
-	- ...
-*/
-
 #include "platform.hpp"
 
 #include "types.hpp"
@@ -177,7 +157,7 @@ internal_function bool32 platform_create_audio_device() {
 	return GAME_SUCCESS;
 }
 
-void platform_audio_play_file(const char *file_path) {
+bool platform_audio_play_file(const char *file_path) {
 	// populating XAudio2 structures with the contents of RIFF chunks
 	WAVEFORMATEXTENSIBLE wfx{};
 	XAUDIO2_BUFFER buffer{};
@@ -194,13 +174,11 @@ void platform_audio_play_file(const char *file_path) {
 	);
 
 	if (hfile == INVALID_HANDLE_VALUE) {
-		//TODO: Logging
-		return;
+		return false;
 	}
 
 	if (SetFilePointer(hfile, 0, NULL, FILE_BEGIN) == INVALID_SET_FILE_POINTER) {
-		//TODO: Logging
-		return;
+		return false;
 	}
 
 	// locate the 'RIFF' chunk in the audio file, check the file type
@@ -211,8 +189,7 @@ void platform_audio_play_file(const char *file_path) {
 	DWORD file_type;
 	read_chunk_data(hfile, &file_type, sizeof(DWORD), dw_chunk_position);
 	if (file_type != fourccWAVE) {
-		//TODO: Logging
-		return;
+		return false;
 	}
 
 	// locate the 'fmt ' chunk and copy its contents into a WAVEFORMATEXTENSIBLE structure
@@ -237,21 +214,20 @@ void platform_audio_play_file(const char *file_path) {
 	static Voice_Callback voice_callback;
 	HRESULT hresult = audio_device.xaudio2->CreateSourceVoice(&p_source_voice, (WAVEFORMATEX *)&wfx, 0, XAUDIO2_DEFAULT_FREQ_RATIO, &voice_callback, NULL, NULL);
 	if (FAILED(hresult)) {
-		//TODO: Logging
-		return;
+		return false;
 	}
 
 	hresult = p_source_voice->SubmitSourceBuffer(&buffer);
 	if (FAILED(hresult)) {
-		//TODO: Logging
-		return;
+		return false;
 	}
 
 	hresult = p_source_voice->Start(0);
 	if (FAILED(hresult)) {
-		//TODO: Logging
-		return;
+		return false;
 	}
+
+	return true;
 }
 
 void *platform_get_window_handles() {
@@ -282,7 +258,7 @@ LRESULT CALLBACK main_window_callback(HWND w_handle, UINT message, WPARAM wparam
 		} break;
 
 		case WM_CLOSE: {
-			// Todo: handle this as a message to the user?
+			// @ToDo: handle this as a message to the user?
 			should_close = true;
 		} break;
 
@@ -296,7 +272,7 @@ LRESULT CALLBACK main_window_callback(HWND w_handle, UINT message, WPARAM wparam
 		} break;
 
 		case WM_DESTROY: {
-			// Todo: handle this as an error - recreate window?
+			// @ToDo: handle this as an error - recreate window?
 			should_close = true;
 		} break;
 		
