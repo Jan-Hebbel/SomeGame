@@ -101,7 +101,10 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="src\assets.cpp" />
     <ClCompile Include="src\game.cpp" />
+    <ClCompile Include="src\renderer\fonts.cpp" />
+    <ClCompile Include="src\renderer\vulkan_helper.cpp" />
     <ClCompile Include="src\renderer\vulkan_init.cpp" />
     <ClCompile Include="src\input.cpp" />
     <ClCompile Include="src\math.cpp" />
@@ -114,12 +117,15 @@
     <ClCompile Include="src\renderer\vulkan_renderer.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\assets.hpp" />
     <ClInclude Include="src\input.hpp" />
     <ClInclude Include="src\lib\stb_image.h" />
     <ClInclude Include="src\lib\stb_truetype.h" />
     <ClInclude Include="src\game.hpp" />
     <ClInclude Include="src\renderer.hpp" />
     <ClInclude Include="src\math.hpp" />
+    <ClInclude Include="src\renderer\fonts.hpp" />
+    <ClInclude Include="src\renderer\vulkan_helper.hpp" />
     <ClInclude Include="src\renderer\vulkan_init.hpp" />
     <ClInclude Include="src\types.hpp" />
     <ClInclude Include="src\platform.hpp" />

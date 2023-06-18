@@ -33,7 +33,9 @@
 #include "math.hpp"
 #include "game.hpp"
 #include "platform.hpp"
+#include "assets.hpp"
 #include "renderer/vulkan_init.hpp"
+#include "renderer/vulkan_helper.hpp"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <lib/stb_image.h>
@@ -70,12 +72,6 @@ struct SwapchainDetails {
 	std::vector<VkSurfaceFormatKHR> surface_formats;
 	std::vector<VkPresentModeKHR> present_modes;
 };
-
-global_variable const uint16 indices[] = {
-	0, 1, 2, 2, 3, 0
-};
-
-stbtt_bakedchar cdata[96];
 
 VKAPI_ATTR VkBool32 VKAPI_CALL vulkan_debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT severity, VkDebugUtilsMessageTypeFlagsEXT type, const VkDebugUtilsMessengerCallbackDataEXT *p_callback_data, void *p_user_data)
 {
@@ -315,220 +311,6 @@ void create_framebuffers() {
 	}
 }
 
-bool find_memory_type(uint32 type_filter, VkMemoryPropertyFlags property_flags, uint32 *index)
-{
-	VkPhysicalDeviceMemoryProperties memory_properties{};
-	vkGetPhysicalDeviceMemoryProperties(c.physical_device, &memory_properties);
-
-	for (uint32 i = 0; i < memory_properties.memoryTypeCount; ++i)
-	{
-		if ((type_filter & (1 << i)) && (memory_properties.memoryTypes[i].propertyFlags & property_flags) == property_flags)
-		{
-			*index = i;
-			return true;
-		}
-	}
-
-	return false;
-}
-
-void create_buffer(VkDeviceSize size, VkBufferUsageFlags usage_flags, VkMemoryPropertyFlags property_flags, VkBuffer &buffer, VkDeviceMemory &memory)
-{
-	VkBufferCreateInfo buffer_info{
-		.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
-		.size = size,
-		.usage = usage_flags,
-		.sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-	};
-
-	VkResult result = vkCreateBuffer(c.device, &buffer_info, 0, &buffer);
-	if (result != VK_SUCCESS)
-	{
-		platform_log("Fatal: Failed to create buffer!\n");
-		assert(result == VK_SUCCESS);
-	}
-
-	VkMemoryRequirements memory_requirements{};
-	vkGetBufferMemoryRequirements(c.device, buffer, &memory_requirements);
-	uint32 memory_type_index;
-	bool res = find_memory_type(memory_requirements.memoryTypeBits, property_flags, &memory_type_index);
-	if (!res)
-	{
-		platform_log("Fatal: Failed to find a suitable memory type!\n");
-		assert(result == VK_SUCCESS);
-	}
-	VkMemoryAllocateInfo alloc_info{
-		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-		.allocationSize = memory_requirements.size,
-		.memoryTypeIndex = memory_type_index,
-	};
-
-	// NOTE: don't call vkAllocateMemory for every individual buffer, the number of allocations is limited; instead when allocating memory for a large number of objects, create a custom allocator that splits up a single allocation among many different objects by using the offset parameters
-	// NOTE: maybe go a step further (as driver developers recommend): also store multiple buffers like the vertex buffer and index buffer into a single VkBuffer and use offsets in commands like vkCmdBindVertexBuffers => more cache friendly @Performance
-	result = vkAllocateMemory(c.device, &alloc_info, 0, &memory);
-	if (result != VK_SUCCESS)
-	{
-		platform_log("Fatal: Failed to allocate memory!\n");
-		assert(result == VK_SUCCESS);
-	}
-
-	vkBindBufferMemory(c.device, buffer, memory, 0);
-}
-
-VkCommandBuffer begin_single_time_commands()
-{
-	VkCommandBufferAllocateInfo alloc_info{
-		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-		.commandPool = c.command_pool,
-		.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-		.commandBufferCount = 1,
-	};
-
-	VkCommandBuffer command_buffer;
-	vkAllocateCommandBuffers(c.device, &alloc_info, &command_buffer);
-
-	VkCommandBufferBeginInfo begin_info{
-		.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-		.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-	};
-	vkBeginCommandBuffer(command_buffer, &begin_info);
-
-	return command_buffer;
-}
-
-void end_single_time_commands(VkCommandBuffer command_buffer)
-{
-	vkEndCommandBuffer(command_buffer);
-
-	VkSubmitInfo submit_info{
-		.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-		.commandBufferCount = 1,
-		.pCommandBuffers = &command_buffer,
-	};
-	vkQueueSubmit(c.graphics_queue, 1, &submit_info, VK_NULL_HANDLE);
-	vkQueueWaitIdle(c.graphics_queue); // @Speed @Performance; use vkWaitForFences
-
-	vkFreeCommandBuffers(c.device, c.command_pool, 1, &command_buffer);
-}
-
-void copy_buffer(VkBuffer src_buffer, VkBuffer dst_buffer, VkDeviceSize size)
-{
-	VkCommandBuffer command_buffer = begin_single_time_commands();
-
-	VkBufferCopy copy_region{
-		.srcOffset = 0,
-		.dstOffset = 0,
-		.size = size,
-	};
-	vkCmdCopyBuffer(command_buffer, src_buffer, dst_buffer, 1, &copy_region);
-
-	end_single_time_commands(command_buffer);
-}
-
-void create_image(uint32 width, uint32 height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage_flags, VkMemoryPropertyFlags property_flags, VkImage &image, VkDeviceMemory &image_memory)
-{
-	VkImageCreateInfo image_info{
-		.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-		.imageType = VK_IMAGE_TYPE_2D,
-		.format = format,
-		.extent = { static_cast<uint32_t>(width), static_cast<uint32_t>(height), 1 },
-		.mipLevels = 1,
-		.arrayLayers = 1,
-		.samples = VK_SAMPLE_COUNT_1_BIT,
-		.tiling = tiling,
-		.usage = usage_flags,
-		.sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-		.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-	};
-	VkResult result = vkCreateImage(c.device, &image_info, 0, &image);
-	if (result != VK_SUCCESS)
-	{
-		platform_log("Failed to create a vulkan image for the texture!\n");
-		assert(result == VK_SUCCESS);
-	}
-	VkMemoryRequirements memory_requirements;
-	vkGetImageMemoryRequirements(c.device, image, &memory_requirements);
-
-	uint32_t index;
-	bool res = find_memory_type(memory_requirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, &index);
-	if (!res)
-	{
-		platform_log("Fatal: Failed to find suitable memory type!\n");
-		assert(res);
-	}
-	VkMemoryAllocateInfo alloc_info{
-		.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-		.allocationSize = memory_requirements.size,
-		.memoryTypeIndex = index,
-	};
-
-	result = vkAllocateMemory(c.device, &alloc_info, 0, &image_memory);
-	if (result != VK_SUCCESS)
-	{
-		platform_log("Failed to allocate memory for the vulkan image!\n");
-		assert(result == VK_SUCCESS);
-	}
-
-	vkBindImageMemory(c.device, image, image_memory, 0);
-}
-
-void transition_image_layout(VkImage image, VkFormat format, VkImageLayout old_layout, VkImageLayout new_layout)
-{
-	VkCommandBuffer command_buffer = begin_single_time_commands();
-
-	VkImageMemoryBarrier barrier = {
-		.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-		.oldLayout = old_layout,
-		.newLayout = new_layout,
-		.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-		.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-		.image = image,
-		.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 },
-	};
-
-	VkPipelineStageFlags source_stage;
-	VkPipelineStageFlags destination_stage;
-	if (old_layout == VK_IMAGE_LAYOUT_UNDEFINED && new_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
-		barrier.srcAccessMask = 0;
-		barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-
-		source_stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-		destination_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-	}
-	else if (old_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && new_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
-		barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-		source_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-		destination_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-	}
-	else
-	{
-		platform_log("Unsupported layout transition!\n");
-		return; 
-	}
-
-	vkCmdPipelineBarrier(command_buffer, source_stage, destination_stage, 0, 0, 0, 0, 0, 1, &barrier);
-
-	end_single_time_commands(command_buffer);
-}
-
-void copy_buffer_to_image(VkBuffer buffer, VkImage image, uint32 width, uint32 height) {
-	VkCommandBuffer command_buffer = begin_single_time_commands();
-
-	VkBufferImageCopy region = {
-		.bufferOffset = 0,
-		.bufferRowLength = 0,
-		.bufferImageHeight = 0,
-		.imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 },
-		.imageOffset = { 0, 0, 0 },
-		.imageExtent = { width, height, 1 },
-	};
-	vkCmdCopyBufferToImage(command_buffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
-
-	end_single_time_commands(command_buffer);
-}
-
 internal_function bool32 create_shader_module(const char *shader_file, VkShaderModule *shader_module) {
 	File_Asset file_asset = {}; 
 	uint32 size = platform_read_file(shader_file, &file_asset);
@@ -550,155 +332,6 @@ internal_function bool32 create_shader_module(const char *shader_file, VkShaderM
 	}
 
 	return GAME_SUCCESS;
-}
-
-void create_render_buffer(const void *elements, size_t size, Render_Buffer *render_buffer, Buffer_Type type) {
-	VkBufferUsageFlagBits usage_type;
-	switch (type) {
-		case VERTEX_BUFFER: {
-			usage_type = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-			break;
-		}
-
-		case INDEX_BUFFER: {
-			usage_type = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
-			break;
-		}
-
-		default: {
-			assert(render_buffer->type == VERTEX_BUFFER || render_buffer->type == INDEX_BUFFER);
-			break;
-		}
-	}
-	render_buffer->type = type;
-
-	VkBuffer staging_buffer;
-	VkDeviceMemory staging_buffer_memory;
-
-	create_buffer(static_cast<uint64_t>(size), VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, staging_buffer, staging_buffer_memory);
-
-	void *data;
-	vkMapMemory(c.device, staging_buffer_memory, 0, static_cast<uint64_t>(size), 0, &data);
-	memcpy(data, elements, size);
-	vkUnmapMemory(c.device, staging_buffer_memory);
-
-	create_buffer(static_cast<uint64_t>(size), VK_BUFFER_USAGE_TRANSFER_DST_BIT | usage_type, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, render_buffer->buffer, render_buffer->memory);
-
-	copy_buffer(staging_buffer, render_buffer->buffer, size);
-
-	vkDestroyBuffer(c.device, staging_buffer, 0);
-	vkFreeMemory(c.device, staging_buffer_memory, 0);
-}
-
-bool create_texture_image(const char *file_path, int *width, int *height, int *nr_channels, Texture *texture, VkFormat format = VK_FORMAT_R8G8B8A8_SRGB) {
-	stbi_uc *pixels = stbi_load(file_path, width, height, nr_channels, STBI_rgb_alpha);
-	if (!pixels) {
-		return false;
-	}
-
-	int w = *width;
-	int h = *height;
-
-	VkDeviceSize image_size = w * h * 4;
-
-	VkBuffer staging_buffer;
-	VkDeviceMemory staging_buffer_memory;
-
-	create_buffer(image_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, staging_buffer, staging_buffer_memory);
-
-	void *data;
-	vkMapMemory(c.device, staging_buffer_memory, 0, image_size, 0, &data);
-	memcpy(data, pixels, static_cast<size_t>(image_size));
-	vkUnmapMemory(c.device, staging_buffer_memory);
-	stbi_image_free(pixels);
-
-	create_image(w, h, format, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, texture->image, texture->memory);
-
-	transition_image_layout(texture->image, format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-
-	copy_buffer_to_image(staging_buffer, texture->image, static_cast<uint32_t>(w), static_cast<uint32_t>(h));
-
-	transition_image_layout(texture->image, format, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-
-	vkDestroyBuffer(c.device, staging_buffer, 0);
-	vkFreeMemory(c.device, staging_buffer_memory, 0);
-
-	return true;
-}
-
-bool create_texture_image(const char *texture_data, int width, int height, int nrChannels, Texture *texture, VkFormat format = VK_FORMAT_R8G8B8A8_SRGB) {
-	if (!texture_data) {
-		return false;
-	}
-
-	VkDeviceSize image_size = width * height * nrChannels;
-
-	VkBuffer staging_buffer;
-	VkDeviceMemory staging_buffer_memory;
-
-	create_buffer(image_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, staging_buffer, staging_buffer_memory);
-
-	void *data;
-	vkMapMemory(c.device, staging_buffer_memory, 0, image_size, 0, &data);
-	memcpy(data, texture_data, static_cast<size_t>(image_size));
-	vkUnmapMemory(c.device, staging_buffer_memory);
-
-	create_image(width, height, format, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, texture->image, texture->memory);
-
-	transition_image_layout(texture->image, format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-
-	copy_buffer_to_image(staging_buffer, texture->image, static_cast<uint32_t>(width), static_cast<uint32_t>(height));
-
-	transition_image_layout(texture->image, format, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-
-	vkDestroyBuffer(c.device, staging_buffer, 0);
-	vkFreeMemory(c.device, staging_buffer_memory, 0);
-
-	return true;
-}
-
-bool create_texture_image_view(Texture *texture, VkFormat format = VK_FORMAT_R8G8B8A8_SRGB) {
-	VkImageViewCreateInfo view_info = {
-		.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-		.image = texture->image,
-		.viewType = VK_IMAGE_VIEW_TYPE_2D,
-		.format = format,
-		.subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 },
-	};
-	VkResult result = vkCreateImageView(c.device, &view_info, 0, &texture->image_view);
-	if (result != VK_SUCCESS) {
-		return false;
-	}
-
-	return true;
-}
-
-bool create_texture_image_sampler(Texture *texture) {
-	VkSamplerCreateInfo sampler_info{
-		.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-		.magFilter = VK_FILTER_NEAREST,
-		.minFilter = VK_FILTER_NEAREST,
-		.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
-		.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-		.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-		.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
-		.mipLodBias = 0.0f,
-		.anisotropyEnable = VK_FALSE,
-		.compareEnable = VK_FALSE,
-		.compareOp = VK_COMPARE_OP_ALWAYS,
-		.minLod = 0.0f,
-		.maxLod = 0.0f,
-		.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
-		.unnormalizedCoordinates = VK_FALSE,
-	};
-	VkResult result = vkCreateSampler(c.device, &sampler_info, 0, &texture->sampler);
-	if (result != VK_SUCCESS)
-	{
-		platform_log("Fatal: Failed to create a sampler!\n");
-		return false;
-	}
-
-	return true;
 }
 
 bool32 renderer_vulkan_init() {
@@ -1075,7 +708,7 @@ bool32 renderer_vulkan_init() {
 		VkDescriptorSetLayoutBinding sampler_layout_binding = {
 			.binding = 1,
 			.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-			.descriptorCount = MAX_TEXTURE_BINDINGS,
+			.descriptorCount = MAX_TEXTURE_BINDINGS, 
 			.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
 		};
 
@@ -1299,149 +932,38 @@ bool32 renderer_vulkan_init() {
 	}
 
 	//
-	// create texture image (and memory)
+	// create texture asset for player and background
 	//
 	{
-		int width, height, nr_channels;
-		bool result;
-
-		// Player
-		result = create_texture_image("res/textures/option2.png", &width, &height, &nr_channels, &c.texture[0]);
-		if (!result) {
-			platform_log("Fatal: Failed to create texture image!\n");
-			return GAME_FAILURE;
-		}
-
-		// Background
-		result = create_texture_image("res/textures/grass.png", &width, &height, &nr_channels, &c.texture[1]);
-		if (!result) {
-			platform_log("Fatal: Failed to create texture image!\n");
-			return GAME_FAILURE;
-		}
-
-		// Font 
-		const int bitmap_w = 512;
-		const int bitmap_h = 512;
-		unsigned char *temp_bitmap = new unsigned char[bitmap_w * bitmap_h];
-
-		const char *font = "C:/Dev/MyGame/res/fonts/SourceCodePro-Regular.ttf";
-
-		File_Asset font_asset = {};
-		uint32 bytes_read = platform_read_file(font, &font_asset);
-		if (bytes_read == 0) {
-			platform_log("Fatal: Failed to read the font file!\n");
-			return GAME_FAILURE;
-		}
-		int chars_fit = stbtt_BakeFontBitmap(reinterpret_cast<const unsigned char*>(font_asset.data), 0, 32.0f, temp_bitmap, bitmap_w, bitmap_h, 32, 96, cdata);
-		platform_free_file(&font_asset);
-		if (chars_fit <= 0) {
-			platform_log("Fatal: No or not all characters fit into the bitmap.\n");
-			return GAME_FAILURE;
-		}
-
-		result = create_texture_image(reinterpret_cast<char *>(temp_bitmap), bitmap_w, bitmap_h, 1, &c.texture[2], VK_FORMAT_R8_SRGB);
-		if (!result) {
-			platform_log("Fatal: Line %d: Failed to create texture image!\n", __LINE__);
-			return GAME_FAILURE;
-		}
-
-		delete[] temp_bitmap;
-	}
-
-	//
-	// create texture image view
-	//
-	{
-		bool result; 
-
-		// Player
-		result = create_texture_image_view(&c.texture[0]);
-		if (!result) {
-			platform_log("Failed to create a texture image view!\n");
-		}
-
-		// Background
-		result = create_texture_image_view(&c.texture[1]);
-		if (!result) {
-			platform_log("Failed to create a texture image view!\n");
-		}
-
-		// Font
-		result = create_texture_image_view(&c.texture[2], VK_FORMAT_R8_SRGB);
-		if (!result) {
-			platform_log("Failed to create a texture image view!\n");
-		}
-	}
-
-	//
-	// create texture sampler
-	//
-	{
-		bool result;
-
-		result = create_texture_image_sampler(&c.texture[0]); // Player
-		if (!result) {
-			platform_log("Failed to create a texture image sampler!\n");
-		}
-
-		result = create_texture_image_sampler(&c.texture[1]); // Background
-		if (!result) {
-			platform_log("Failed to create a texture image sampler!\n");
-		}
-
-		result = create_texture_image_sampler(&c.texture[2]);
-		if (!result) {
-			platform_log("Failed to create a texture image sampler!\n");
-		}
-	}
-
-	//
-	// create vertex buffer
-	//
-	{
-		// Player
-		const Vertex vertices[] = {
-			{.pos = {-0.5f, -0.5f}, .tex_coord = {0.0f, 0.0f}},
-			{.pos = { 0.5f, -0.5f}, .tex_coord = {1.0f, 0.0f}},
-			{.pos = { 0.5f,  0.5f}, .tex_coord = {1.0f, 1.0f}},
-			{.pos = {-0.5f,  0.5f}, .tex_coord = {0.0f, 1.0f}},
+		const uint indices[] = {
+			0, 1, 2, 2, 3, 0
 		};
 
-		create_render_buffer(vertices, sizeof(vertices), &c.vertex_buffer[0], VERTEX_BUFFER);
-
 		// Background
-		const Vertex bg_vertices[] = {
+		const Vertex background_verts[] = {
 			{.pos = {-6.0f, -6.0f}, .tex_coord = {0.0f, 0.0f}},
 			{.pos = { 6.0f, -6.0f}, .tex_coord = {6.0f, 0.0f}},
 			{.pos = { 6.0f,  6.0f}, .tex_coord = {6.0f, 6.0f}},
 			{.pos = {-6.0f,  6.0f}, .tex_coord = {0.0f, 6.0f}},
 		};
+		bool result = create_texture_asset("res/textures/grass.png", background_verts, indices);
+		if (!result) {
+			platform_log("Fatal: Failed to create background texture!\n");
+			return GAME_FAILURE;
+		}
 
-		create_render_buffer(bg_vertices, sizeof(bg_vertices), &c.vertex_buffer[1], VERTEX_BUFFER);
-
-		// Font 
-		const Vertex font_verts[] = {
-			{.pos = {-1.0f, -1.0f}, .tex_coord = {0.0f, 0.0f}},
-			{.pos = { 1.0f, -1.0f}, .tex_coord = {1.0f, 0.0f}},
-			{.pos = { 1.0f,  1.0f}, .tex_coord = {1.0f, 1.0f}},
-			{.pos = {-1.0f,  1.0f}, .tex_coord = {0.0f, 1.0f}}
-		};
-
-		create_render_buffer(font_verts, sizeof(font_verts), &c.vertex_buffer[2], VERTEX_BUFFER);
-	}
-
-	//
-	// create index buffer
-	//
-	{
 		// Player
-		create_render_buffer(indices, sizeof(indices), &c.index_buffer[0], INDEX_BUFFER);
-
-		// Background
-		create_render_buffer(indices, sizeof(indices), &c.index_buffer[1], INDEX_BUFFER);
-
-		// Font 
-		create_render_buffer(indices, sizeof(indices), &c.index_buffer[2], INDEX_BUFFER);
+		const Vertex player_verts[] = {
+			{.pos = {-0.5f, -0.5f}, .tex_coord = {0.0f, 0.0f}},
+			{.pos = { 0.5f, -0.5f}, .tex_coord = {1.0f, 0.0f}},
+			{.pos = { 0.5f,  0.5f}, .tex_coord = {1.0f, 1.0f}},
+			{.pos = {-0.5f,  0.5f}, .tex_coord = {0.0f, 1.0f}},
+		};
+		result = create_texture_asset("res/textures/option2.png", player_verts, indices);
+		if (!result) {
+			platform_log("Fatal: Failed to create a player texture!\n");
+			return GAME_FAILURE;
+		}
 	}
 
 	//
@@ -1526,13 +1048,16 @@ bool32 renderer_vulkan_init() {
 			return GAME_FAILURE;
 		}
 
-		VkDescriptorImageInfo image_infos[NUMBER_OF_ASSETS];
-		for (int j = 0; j < NUMBER_OF_ASSETS; ++j) {
-			assert(j < MAX_TEXTURE_BINDINGS);
-			image_infos[j].sampler = c.texture[j].sampler;
-			image_infos[j].imageView = c.texture[j].image_view;
-			image_infos[j].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		};
+		uint count = get_texture_asset_count();
+		VkDescriptorImageInfo *image_infos = new VkDescriptorImageInfo[count];
+		uint texture_asset_reader = 0;
+		for (uint i = 0; i < count; ++i) {
+			Texture_Asset texture_asset = get_next_texture_asset(&texture_asset_reader);
+
+			image_infos[i].sampler = texture_asset.texture.sampler;
+			image_infos[i].imageView = texture_asset.texture.image_view;
+			image_infos[i].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		}
 
 		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
 			VkDescriptorBufferInfo buffer_info = {
@@ -1556,13 +1081,14 @@ bool32 renderer_vulkan_init() {
 					.dstSet = c.descriptor_sets[i],
 					.dstBinding = 1,
 					.dstArrayElement = 0,
-					.descriptorCount = NUMBER_OF_ASSETS,
+					.descriptorCount = count,
 					.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
 					.pImageInfo = image_infos,
 				}
 			};
 			vkUpdateDescriptorSets(c.device, sizeof(descriptor_writes) / sizeof(descriptor_writes[0]), descriptor_writes, 0, 0);
 		}
+		delete[] image_infos;
 	}
 
 	//

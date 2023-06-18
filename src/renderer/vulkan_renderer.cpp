@@ -3,6 +3,7 @@
 #include "renderer/vulkan_init.hpp"
 #include "platform.hpp"
 #include "math.hpp"
+#include "assets.hpp"
 
 #define STB_TRUETYPE_IMPLEMENTATION
 #include <lib/stb_truetype.h>
@@ -67,30 +68,35 @@ void end_render_pass(VkCommandBuffer command_buffer) {
 }
 
 void draw_game(VkCommandBuffer command_buffer, Game_State *game_state) {
+	uint index = 0;
+	Texture_Asset texture_asset; 
+
 	// Draw background
-	VkBuffer vertex_buffers2[] = { c.vertex_buffer[1].buffer };
+	texture_asset = get_next_texture_asset(&index);
+	VkBuffer vertex_buffers2[] = { texture_asset.vertex_buffer.buffer };
 	VkDeviceSize offsets2[] = { 0 };
 
 	vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers2, offsets2);
-	vkCmdBindIndexBuffer(command_buffer, c.index_buffer[1].buffer, 0, VK_INDEX_TYPE_UINT16);
+	vkCmdBindIndexBuffer(command_buffer, texture_asset.index_buffer.buffer, 0, VK_INDEX_TYPE_UINT32);
 	vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, c.pipeline_layout, 0, 1, &c.descriptor_sets[c.current_frame], 0, 0);
 	Mat4 model = identity();
 	vkCmdPushConstants(command_buffer, c.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, 64, &model);
-	int texture_index = 1;
+	int texture_index = 0;
 	vkCmdPushConstants(command_buffer, c.pipeline_layout, VK_SHADER_STAGE_FRAGMENT_BIT, 64, sizeof(int), &texture_index); 
 
 	vkCmdDrawIndexed(command_buffer, 6, 1, 0, 0, 0); // @Hardcode: 6 == count of indices
 
 	// Draw player
-	VkBuffer vertex_buffers[] = { c.vertex_buffer[0].buffer };
+	texture_asset = get_next_texture_asset(&index);
+	VkBuffer vertex_buffers[] = { texture_asset.vertex_buffer.buffer };
 	VkDeviceSize offsets[] = { 0 };
 
 	vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers, offsets);
-	vkCmdBindIndexBuffer(command_buffer, c.index_buffer[0].buffer, 0, VK_INDEX_TYPE_UINT16);
+	vkCmdBindIndexBuffer(command_buffer, texture_asset.index_buffer.buffer, 0, VK_INDEX_TYPE_UINT32);
 	vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, c.pipeline_layout, 0, 1, &c.descriptor_sets[c.current_frame], 0, 0); // holds uniforms (texture sampler, uniform buffers)
 	model = transpose(translate({ game_state->player.position.x, game_state->player.position.y, 0 }));
 	vkCmdPushConstants(command_buffer, c.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, 64, &model);
-	texture_index = 0;
+	texture_index = 1;
 	vkCmdPushConstants(command_buffer, c.pipeline_layout, VK_SHADER_STAGE_FRAGMENT_BIT, 64, sizeof(int), &texture_index);
 
 	vkCmdDrawIndexed(command_buffer, 6, 1, 0, 0, 0); // @Hardcode: 6 == count of indices
@@ -113,7 +119,7 @@ char *get_format_as_string(const char *format, ...) {
 	return out_message;
 }
 
-void draw_text(VkCommandBuffer command_buffer, Vec2 top_left, uint font_height, const char *text) {
+void draw_text(VkCommandBuffer command_buffer, Vec2 top_left, const char *text) {
 	// @ToDo add a way in which we get to the cdata created in vulkan_init.cpp
 	//char *ch = (char *)text;
 	//while (*ch) {
@@ -142,7 +148,7 @@ void draw_text(VkCommandBuffer command_buffer, Vec2 top_left, uint font_height, 
 
 void draw_performance_metrics(VkCommandBuffer command_buffer) {
 	char *text = get_format_as_string("%.2f ms", perf_metrics.ms_per_frame);
-	draw_text(command_buffer, {0.01f, 0.01f}, 10 /*pixels*/, text);
+	draw_text(command_buffer, {0.01f, 0.01f}, text);
 	delete[] text;
 }
 

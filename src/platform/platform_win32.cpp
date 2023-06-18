@@ -557,8 +557,8 @@ int CALLBACK WinMain(_In_ HINSTANCE h_instance, _In_opt_ HINSTANCE h_prev_instan
 		last_cycle_count = end_cycle_count;
 	}
 	
-	// don't crash on closing the application; TODO: is this needed?
-	renderer_vulkan_wait_idle();
+	// don't crash on closing the application; not needed if we skip cleanup since we can't crash if we're not even trying to clean up the device
+	//renderer_vulkan_wait_idle();
 
 	// cleanup
 	//renderer_vulkan_cleanup();

@@ -1,6 +1,6 @@
 #version 450
 
-layout(binding = 1) uniform sampler2D tex_sampler[16];
+layout(binding = 1) uniform sampler2D tex_sampler[2];
 
 layout(push_constant) uniform Fragment_Constants {
 	layout(offset = 64) int texture_index;

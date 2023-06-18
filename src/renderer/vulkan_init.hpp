@@ -9,31 +9,12 @@
 #include <vector>
 
 constexpr uint MAX_FRAMES_IN_FLIGHT = 2;
-constexpr uint MAX_TEXTURE_BINDINGS = 16;
-constexpr uint NUMBER_OF_ASSETS = 3;
-
-enum Buffer_Type {
-	VERTEX_BUFFER = 0,
-	INDEX_BUFFER = 1,
-};
-
-struct Render_Buffer {
-	Buffer_Type type;
-	VkBuffer buffer;
-	VkDeviceMemory memory;
-};
+constexpr uint MAX_TEXTURE_BINDINGS = 2;
 
 struct Uniform_Buffer {
 	VkBuffer buffer;
 	VkDeviceMemory memory;
 	void *mapped;
-};
-
-struct Texture {
-	VkImage image;
-	VkDeviceMemory memory;
-	VkImageView image_view;
-	VkSampler sampler;
 };
 
 struct Global_Vulkan_Context {
@@ -62,15 +43,11 @@ struct Global_Vulkan_Context {
 	VkSemaphore render_finished_semaphores[MAX_FRAMES_IN_FLIGHT];
 	VkFence in_flight_fences[MAX_FRAMES_IN_FLIGHT];
 	uint32 current_frame = 0;
-	Render_Buffer vertex_buffer[NUMBER_OF_ASSETS];
-	Render_Buffer index_buffer[NUMBER_OF_ASSETS];
 	Uniform_Buffer uniform_buffer;
-	Texture texture[NUMBER_OF_ASSETS];
 };
 
-struct Vertex {
-	Vec2 pos;
-	Vec2 tex_coord;
+struct Pipeline { // @ToDo
+	
 };
 
 struct Uniform_Buffer_Object {
@@ -79,8 +56,6 @@ struct Uniform_Buffer_Object {
 };
 
 extern Global_Vulkan_Context c;
-typedef struct tag_stbtt_bakedchar stbtt_bakedchar; 
-extern stbtt_bakedchar cdata[96]; // @Cleanup
 
 void cleanup_swapchain();
 void create_swapchain();
