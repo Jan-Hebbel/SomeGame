@@ -36,3 +36,7 @@ void load_default_fonts() {
 
 	delete[] temp_bitmap;
 }
+
+stbtt_bakedchar *get_cdata() {
+	return cdata;
+}

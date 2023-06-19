@@ -104,6 +104,7 @@
     <ClCompile Include="src\assets.cpp" />
     <ClCompile Include="src\game.cpp" />
     <ClCompile Include="src\renderer\fonts.cpp" />
+    <ClCompile Include="src\renderer\pipeline.cpp" />
     <ClCompile Include="src\renderer\vulkan_helper.cpp" />
     <ClCompile Include="src\renderer\vulkan_init.cpp" />
     <ClCompile Include="src\input.cpp" />
@@ -125,6 +126,7 @@
     <ClInclude Include="src\renderer.hpp" />
     <ClInclude Include="src\math.hpp" />
     <ClInclude Include="src\renderer\fonts.hpp" />
+    <ClInclude Include="src\renderer\pipeline.hpp" />
     <ClInclude Include="src\renderer\vulkan_helper.hpp" />
     <ClInclude Include="src\renderer\vulkan_init.hpp" />
     <ClInclude Include="src\types.hpp" />
@@ -132,8 +134,10 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="res\shaders\compile.bat" />
-    <None Include="res\shaders\shader.frag" />
-    <None Include="res\shaders\shader.vert" />
+    <None Include="res\shaders\default.frag" />
+    <None Include="res\shaders\default.vert" />
+    <None Include="res\shaders\font.frag" />
+    <None Include="res\shaders\font.vert" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

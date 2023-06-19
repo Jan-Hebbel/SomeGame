@@ -1,9 +1,10 @@
 #include "renderer.hpp"
 
-#include "renderer/vulkan_init.hpp"
+#include "vulkan_init.hpp"
 #include "platform.hpp"
 #include "math.hpp"
 #include "assets.hpp"
+#include "fonts.hpp"
 
 #define STB_TRUETYPE_IMPLEMENTATION
 #include <lib/stb_truetype.h>
@@ -78,11 +79,11 @@ void draw_game(VkCommandBuffer command_buffer, Game_State *game_state) {
 
 	vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers2, offsets2);
 	vkCmdBindIndexBuffer(command_buffer, texture_asset.index_buffer.buffer, 0, VK_INDEX_TYPE_UINT32);
-	vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, c.pipeline_layout, 0, 1, &c.descriptor_sets[c.current_frame], 0, 0);
+	vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, c.pipeline_layout[0], 0, 1, &c.descriptor_sets[c.current_frame], 0, 0);
 	Mat4 model = identity();
-	vkCmdPushConstants(command_buffer, c.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, 64, &model);
+	vkCmdPushConstants(command_buffer, c.pipeline_layout[0], VK_SHADER_STAGE_VERTEX_BIT, 0, 64, &model);
 	int texture_index = 0;
-	vkCmdPushConstants(command_buffer, c.pipeline_layout, VK_SHADER_STAGE_FRAGMENT_BIT, 64, sizeof(int), &texture_index); 
+	vkCmdPushConstants(command_buffer, c.pipeline_layout[0], VK_SHADER_STAGE_FRAGMENT_BIT, 64, sizeof(int), &texture_index); 
 
 	vkCmdDrawIndexed(command_buffer, 6, 1, 0, 0, 0); // @Hardcode: 6 == count of indices
 
@@ -93,11 +94,11 @@ void draw_game(VkCommandBuffer command_buffer, Game_State *game_state) {
 
 	vkCmdBindVertexBuffers(command_buffer, 0, 1, vertex_buffers, offsets);
 	vkCmdBindIndexBuffer(command_buffer, texture_asset.index_buffer.buffer, 0, VK_INDEX_TYPE_UINT32);
-	vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, c.pipeline_layout, 0, 1, &c.descriptor_sets[c.current_frame], 0, 0); // holds uniforms (texture sampler, uniform buffers)
+	vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, c.pipeline_layout[0], 0, 1, &c.descriptor_sets[c.current_frame], 0, 0); // holds uniforms (texture sampler, uniform buffers)
 	model = transpose(translate({ game_state->player.position.x, game_state->player.position.y, 0 }));
-	vkCmdPushConstants(command_buffer, c.pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, 64, &model);
+	vkCmdPushConstants(command_buffer, c.pipeline_layout[0], VK_SHADER_STAGE_VERTEX_BIT, 0, 64, &model);
 	texture_index = 1;
-	vkCmdPushConstants(command_buffer, c.pipeline_layout, VK_SHADER_STAGE_FRAGMENT_BIT, 64, sizeof(int), &texture_index);
+	vkCmdPushConstants(command_buffer, c.pipeline_layout[0], VK_SHADER_STAGE_FRAGMENT_BIT, 64, sizeof(int), &texture_index);
 
 	vkCmdDrawIndexed(command_buffer, 6, 1, 0, 0, 0); // @Hardcode: 6 == count of indices
 }
@@ -120,12 +121,13 @@ char *get_format_as_string(const char *format, ...) {
 }
 
 void draw_text(VkCommandBuffer command_buffer, Vec2 top_left, const char *text) {
-	// @ToDo add a way in which we get to the cdata created in vulkan_init.cpp
+	stbtt_bakedchar *cdata = get_cdata();
+
 	//char *ch = (char *)text;
 	//while (*ch) {
 	//	if (*ch >= 32 && *ch < 128) {
 	//		stbtt_aligned_quad q;
-	//		stbtt_GetBakedQuad(reinterpret_cast<const stbtt_bakedchar *>(cdata), 512, 512, *ch - 32, &top_left.x, &top_left.y, &q, 1);
+	//		stbtt_GetBakedQuad(cdata, 512, 512, *ch - 32, &top_left.x, &top_left.y, &q, 1);
 	//		//platform_log("%c", *ch); 
 
 	//		VkBuffer vertex_buffers[] = { c.vertex_buffer[2].buffer };
@@ -170,8 +172,7 @@ void game_render(Game_State *game_state)
 	// Recreate the swapchain if the swapchain is outdated (resizing or minimizing window).
 	//
 	static bool swapchain_outdated = false;
-	if (swapchain_outdated)
-	{
+	if (swapchain_outdated) {
 		recreate_swapchain();
 		swapchain_outdated = false;
 	}
@@ -181,13 +182,11 @@ void game_render(Game_State *game_state)
 	//
 	uint32 image_index;
 	VkResult result = vkAcquireNextImageKHR(c.device, c.swapchain, UINT64_MAX, c.image_available_semaphores[c.current_frame], VK_NULL_HANDLE, &image_index);
-	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
-	{
+	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
 		swapchain_outdated = true;
 		return;
 	}
-	else if (result != VK_SUCCESS)
-	{
+	else if (result != VK_SUCCESS) {
 		platform_log("Fatal: Failed to acquire the next image!\n");
 		assert(VK_SUCCESS == result);
 	}
@@ -195,12 +194,12 @@ void game_render(Game_State *game_state)
 	// 
 	// Draw. (Record command buffer that draws image.)
 	//
-	VkClearValue clear_color{ {{0.05f, 0.3f, 0.3f, 1.0f}} };
+	VkClearValue clear_color = { {{0.05f, 0.3f, 0.3f, 1.0f}} };
 	VkCommandBuffer command_buffer = begin_render_pass(c.main_pass, &clear_color, image_index);
 
-	vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, c.graphics_pipeline);
+	vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, c.graphics_pipeline[0]);
 
-	VkViewport viewport{
+	VkViewport viewport = {
 		.x = 0.0f, .y = 0.0f,
 		.width = static_cast<float>(c.swapchain_image_extent.width),
 		.height = static_cast<float>(c.swapchain_image_extent.height),
@@ -208,7 +207,7 @@ void game_render(Game_State *game_state)
 	};
 	vkCmdSetViewport(command_buffer, 0, 1, &viewport);
 
-	VkRect2D scissor{
+	VkRect2D scissor = {
 		.offset = { 0, 0 },
 		.extent = c.swapchain_image_extent,
 	};
@@ -230,6 +229,8 @@ void game_render(Game_State *game_state)
 			break;
 		}
 	}
+
+	//vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, c.graphics_pipeline[1]);
 	draw_performance_metrics(command_buffer);
 
 	end_render_pass(command_buffer);
@@ -251,8 +252,7 @@ void game_render(Game_State *game_state)
 		.pSignalSemaphores = signal_semaphores
 	};
 	result = vkQueueSubmit(c.graphics_queue, 1, &submit_info, c.in_flight_fences[c.current_frame]);
-	if (VK_SUCCESS != result)
-	{
+	if (VK_SUCCESS != result) {
 		platform_log("Fatal: Failed to submit to queue!\n");
 		assert(VK_SUCCESS == result);
 	}
@@ -261,7 +261,7 @@ void game_render(Game_State *game_state)
 	// Present the image.
 	//
 	VkSwapchainKHR swapchains[] = { c.swapchain };
-	VkPresentInfoKHR present_info{
+	VkPresentInfoKHR present_info = {
 		.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
 		.waitSemaphoreCount = 1,
 		.pWaitSemaphores = signal_semaphores,
@@ -270,13 +270,11 @@ void game_render(Game_State *game_state)
 		.pImageIndices = &image_index,
 	};
 	result = vkQueuePresentKHR(c.present_queue, &present_info);
-	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR)
-	{
+	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
 		swapchain_outdated = true;
 		return;
 	}
-	else if (result != VK_SUCCESS)
-	{
+	else if (result != VK_SUCCESS) {
 		platform_log("Fatal: Failed to present!\n");
 		assert(VK_SUCCESS == result);
 	}

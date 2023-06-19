@@ -34,8 +34,8 @@ struct Global_Vulkan_Context {
 	VkDescriptorSetLayout descriptor_set_layout;
 	VkDescriptorPool descriptor_pool;
 	VkDescriptorSet descriptor_sets[MAX_FRAMES_IN_FLIGHT];
-	VkPipelineLayout pipeline_layout;
-	VkPipeline graphics_pipeline;
+	VkPipelineLayout pipeline_layout[2];
+	VkPipeline graphics_pipeline[2];
 	std::vector<VkFramebuffer> swapchain_framebuffers;
 	VkCommandPool command_pool;
 	VkCommandBuffer command_buffers[MAX_FRAMES_IN_FLIGHT];
@@ -44,10 +44,6 @@ struct Global_Vulkan_Context {
 	VkFence in_flight_fences[MAX_FRAMES_IN_FLIGHT];
 	uint32 current_frame = 0;
 	Uniform_Buffer uniform_buffer;
-};
-
-struct Pipeline { // @ToDo
-	
 };
 
 struct Uniform_Buffer_Object {
